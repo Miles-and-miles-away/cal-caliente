@@ -32,7 +32,7 @@ const env = {
   appSlug: "salsa-bachata-calendar",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://d36hbw14aib5lz.cloudfront.net/310519663567414061/MHzkwzTJqZAuurQmZqmCuz/app-icon-48LsqyDgRX4wCuCoDiSPh6.png?Expires=1807957848&Signature=bjAQeLyGVpoMiMdf-sTneVSwGcIkn0iorDdAp5sitqq-OTK6Kj9~kFPcyWHOKlO26OFCPmE80xL-sKJa~Cf3oRZRiyVZHrZ~2r20GfTc2uS1DtltDX5Ipq61DCrv1By1SrqUlJzfccFXNNyVZEj2ECaie855Qj2XiEhv4pX-~L5ISaY1XzjqZv8HUCXkb-Hs~8sFPcoJzPnO~17H8W~KkOiyUM9gWES7wj8ROJzkcAd43VAK3WTPsBoGL7Vq0lfalAAwRjS27fRbEoSLH~JmJg7YL3X2bRKWNcqYYsp~lpiYKJ6H~eu8IyQYNUn9rT-38LPIzWqUDOBwfy3FlcsuUg__&Key-Pair-Id=K1MP89RTKNH4J",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -56,7 +56,7 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
+      backgroundColor: "#8B0000",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",

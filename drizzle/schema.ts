@@ -1,17 +1,8 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
+// ─── Users ───────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +16,84 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── Events ──────────────────────────────────────────────────────────────────
+export const events = mysqlTable("events", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceId: int("sourceId").notNull(),
+  externalId: varchar("externalId", { length: 255 }),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  danceStyle: mysqlEnum("danceStyle", ["salsa", "bachata", "both", "other"]),
+  eventType: mysqlEnum("eventType", ["social", "workshop", "performance", "festival", "class", "other"]),
+  startAt: timestamp("startAt").notNull(),
+  endAt: timestamp("endAt"),
+  venueName: varchar("venueName", { length: 500 }),
+  venueAddress: text("venueAddress"),
+  city: varchar("city", { length: 100 }),
+  prefecture: varchar("prefecture", { length: 100 }),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  nearestStation: varchar("nearestStation", { length: 200 }),
+  imageUrl: text("imageUrl"),
+  sourceUrl: text("sourceUrl"),
+  price: varchar("price", { length: 200 }),
+  organizer: varchar("organizer", { length: 300 }),
+  isVerified: boolean("isVerified").default(false).notNull(),
+  isCancelled: boolean("isCancelled").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = typeof events.$inferInsert;
+
+// ─── Event Sources ───────────────────────────────────────────────────────────
+export const eventSources = mysqlTable("event_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  url: text("url").notNull(),
+  sourceType: mysqlEnum("sourceType", ["facebook", "instagram", "rss", "html", "custom"]).default("html").notNull(),
+  region: varchar("region", { length: 100 }).default("japan"),
+  isActive: boolean("isActive").default(true).notNull(),
+  isUserAdded: boolean("isUserAdded").default(false).notNull(),
+  lastScrapedAt: timestamp("lastScrapedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type EventSource = typeof eventSources.$inferSelect;
+export type InsertEventSource = typeof eventSources.$inferInsert;
+
+// ─── Scrape Logs ─────────────────────────────────────────────────────────────
+export const scrapeLogs = mysqlTable("scrape_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceId: int("sourceId").notNull(),
+  status: mysqlEnum("status", ["success", "error", "partial"]).notNull(),
+  eventsFound: int("eventsFound").default(0).notNull(),
+  eventsAdded: int("eventsAdded").default(0).notNull(),
+  errorMessage: text("errorMessage"),
+  durationMs: int("durationMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── User Preferences ────────────────────────────────────────────────────────
+export const userPreferences = mysqlTable("user_preferences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  city: varchar("city", { length: 100 }),
+  prefecture: varchar("prefecture", { length: 100 }),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  maxDistanceKm: int("maxDistanceKm").default(30),
+  nearestStation: varchar("nearestStation", { length: 200 }),
+  maxWalkMinutes: int("maxWalkMinutes").default(15),
+  danceStyleFilter: mysqlEnum("danceStyleFilter", ["salsa", "bachata", "both"]).default("both"),
+  eventTypeFilters: text("eventTypeFilters"),
+  notificationsEnabled: boolean("notificationsEnabled").default(true),
+  notifyBeforeHours: int("notifyBeforeHours").default(24),
+  theme: mysqlEnum("theme", ["light", "dark", "system"]).default("system"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type InsertUserPreferences = typeof userPreferences.$inferInsert;

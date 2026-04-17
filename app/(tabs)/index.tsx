@@ -1,48 +1,225 @@
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { EventCard } from "@/components/event-card";
+import { FilterChips } from "@/components/filter-chips";
+import { useColors } from "@/hooks/use-colors";
+import { trpc } from "@/lib/trpc";
+import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS } from "@/shared/types";
 
-/**
- * Home Screen - NativeWind Example
- *
- * This template uses NativeWind (Tailwind CSS for React Native).
- * You can use familiar Tailwind classes directly in className props.
- *
- * Key patterns:
- * - Use `className` instead of `style` for most styling
- * - Theme colors: use tokens directly (bg-background, text-foreground, bg-primary, etc.); no dark: prefix needed
- * - Responsive: standard Tailwind breakpoints work on web
- * - Custom colors defined in tailwind.config.js
- */
-export default function HomeScreen() {
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function getDaysInMonth(year: number, month: number): Date[] {
+  const days: Date[] = [];
+  const date = new Date(year, month, 1);
+  while (date.getMonth() === month) {
+    days.push(new Date(date));
+    date.setDate(date.getDate() + 1);
+  }
+  return days;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export default function CalendarScreen() {
+  const colors = useColors();
+  const today = useMemo(() => new Date(), []);
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [selectedDate, setSelectedDate] = useState<Date>(today);
+  const [danceFilter, setDanceFilter] = useState<string>("all");
+
+  const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
+  const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
+
+  const { data: events, isLoading } = trpc.events.list.useQuery({
+    danceStyle: danceFilter === "all" ? undefined : danceFilter,
+    startDate: monthStart.toISOString(),
+    endDate: monthEnd.toISOString(),
+    limit: 200,
+  });
+
+  const eventsList = (events ?? []) as any[];
+
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const ev of eventsList) {
+      const d = new Date(ev.startAt);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(ev);
+    }
+    return map;
+  }, [eventsList]);
+
+  const selectedDateEvents = useMemo(() => {
+    const key = `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`;
+    return eventsByDate[key] ?? [];
+  }, [selectedDate, eventsByDate]);
+
+  const days = useMemo(() => getDaysInMonth(currentYear, currentMonth), [currentYear, currentMonth]);
+  const firstDayOffset = days[0]?.getDay() ?? 0;
+
+  const goToPrevMonth = () => {
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
+    else setCurrentMonth(currentMonth - 1);
+  };
+
+  const goToNextMonth = () => {
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
+    else setCurrentMonth(currentMonth + 1);
+  };
+
+  const monthLabel = new Date(currentYear, currentMonth).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const renderEvent = useCallback(
+    ({ item }: { item: any }) => (
+      <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
+        <EventCard event={item} compact />
+      </View>
+    ),
+    []
+  );
+
+  const ListHeader = () => (
+    <View>
+      {/* Month navigation */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
+        <Pressable onPress={goToPrevMonth} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 8 }]}>
+          <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "600" }}>‹</Text>
+        </Pressable>
+        <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "700" }}>{monthLabel}</Text>
+        <Pressable onPress={goToNextMonth} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 8 }]}>
+          <Text style={{ color: colors.primary, fontSize: 20, fontWeight: "600" }}>›</Text>
+        </Pressable>
+      </View>
+
+      {/* Weekday headers */}
+      <View style={{ flexDirection: "row", paddingHorizontal: 8 }}>
+        {WEEKDAYS.map((day) => (
+          <View key={day} style={{ flex: 1, alignItems: "center", paddingBottom: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>{day}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Calendar grid */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, marginBottom: 12 }}>
+        {Array.from({ length: firstDayOffset }).map((_, i) => (
+          <View key={`empty-${i}`} style={{ width: "14.28%", height: 44 }} />
+        ))}
+        {days.map((day) => {
+          const dateKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+          const dayEvents = eventsByDate[dateKey] ?? [];
+          const isSelected = isSameDay(day, selectedDate);
+          const isToday = isSameDay(day, today);
+          const hasEvents = dayEvents.length > 0;
+
+          // Get unique dance styles for dot indicators
+          const styles = [...new Set(dayEvents.map((e: any) => e.danceStyle ?? "other"))];
+
+          return (
+            <Pressable
+              key={day.toISOString()}
+              onPress={() => setSelectedDate(day)}
+              style={({ pressed }) => [
+                {
+                  width: "14.28%",
+                  height: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isSelected ? colors.primary : "transparent",
+                  borderWidth: isToday && !isSelected ? 1.5 : 0,
+                  borderColor: colors.primary,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: isSelected || isToday ? "700" : "400",
+                    color: isSelected ? "#FFFFFF" : isToday ? colors.primary : colors.foreground,
+                  }}
+                >
+                  {day.getDate()}
+                </Text>
+              </View>
+              {/* Event dots */}
+              {hasEvents && (
+                <View style={{ flexDirection: "row", gap: 2, marginTop: 1, position: "absolute", bottom: 2 }}>
+                  {styles.slice(0, 3).map((s: string, i: number) => (
+                    <View
+                      key={i}
+                      style={{
+                        width: 4,
+                        height: 4,
+                        borderRadius: 2,
+                        backgroundColor: isSelected ? "#FFFFFF" : DANCE_STYLE_COLORS[s] ?? colors.muted,
+                      }}
+                    />
+                  ))}
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Dance style filter */}
+      <View style={{ marginBottom: 12 }}>
+        <FilterChips options={DANCE_STYLE_OPTIONS} selected={danceFilter} onSelect={setDanceFilter} />
+      </View>
+
+      {/* Selected date label */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+        <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "700" }}>
+          {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+          {selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? "s" : ""}
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
-    <ScreenContainer className="p-6">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 gap-8">
-          {/* Hero Section */}
-          <View className="items-center gap-2">
-            <Text className="text-4xl font-bold text-foreground">Welcome</Text>
-            <Text className="text-base text-muted text-center">
-              Edit app/(tabs)/index.tsx to get started
-            </Text>
+    <ScreenContainer>
+      <FlatList
+        data={selectedDateEvents}
+        keyExtractor={(item: any) => item.id.toString()}
+        renderItem={renderEvent}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={
+          <View style={{ alignItems: "center", paddingVertical: 32 }}>
+            {isLoading ? (
+              <ActivityIndicator size="large" color={colors.primary} />
+            ) : (
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 40, marginBottom: 8 }}>💃</Text>
+                <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
+                  No events on this date.{"\n"}Try selecting another day!
+                </Text>
+              </View>
+            )}
           </View>
-
-          {/* Example Card */}
-          <View className="w-full max-w-sm self-center bg-surface rounded-2xl p-6 shadow-sm border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-2">NativeWind Ready</Text>
-            <Text className="text-sm text-muted leading-relaxed">
-              Use Tailwind CSS classes directly in your React Native components.
-            </Text>
-          </View>
-
-          {/* Example Button */}
-          <View className="items-center">
-            <TouchableOpacity className="bg-primary px-6 py-3 rounded-full active:opacity-80">
-              <Text className="text-background font-semibold">Get Started</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
+        }
+        contentContainerStyle={{ paddingBottom: 100 }}
+      />
     </ScreenContainer>
   );
 }

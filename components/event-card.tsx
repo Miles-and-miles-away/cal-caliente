@@ -1,0 +1,129 @@
+import { Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { useColors } from "@/hooks/use-colors";
+import {
+  DANCE_STYLE_COLORS,
+  DANCE_STYLE_LABELS,
+  formatEventDate,
+  formatEventTime,
+  capitalizeFirst,
+} from "@/shared/types";
+
+interface EventCardProps {
+  event: {
+    id: number;
+    title: string;
+    danceStyle?: string | null;
+    eventType?: string | null;
+    startAt: string | Date;
+    venueName?: string | null;
+    city?: string | null;
+    nearestStation?: string | null;
+    price?: string | null;
+    isVerified?: boolean;
+  };
+  compact?: boolean;
+}
+
+export function EventCard({ event, compact = false }: EventCardProps) {
+  const colors = useColors();
+  const router = useRouter();
+  const styleColor = DANCE_STYLE_COLORS[event.danceStyle ?? "other"];
+  const dateStr = typeof event.startAt === "string" ? event.startAt : event.startAt.toISOString();
+
+  return (
+    <Pressable
+      onPress={() => router.push(`/event/${event.id}` as any)}
+      style={({ pressed }) => [
+        {
+          opacity: pressed ? 0.7 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        },
+      ]}
+    >
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.border,
+          overflow: "hidden",
+        }}
+      >
+        <View style={{ height: 3, backgroundColor: styleColor }} />
+        <View style={{ padding: compact ? 12 : 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6, gap: 6 }}>
+            <View
+              style={{
+                backgroundColor: styleColor + "20",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: styleColor, fontSize: 11, fontWeight: "700" }}>
+                {DANCE_STYLE_LABELS[event.danceStyle ?? "other"] ?? "Dance"}
+              </Text>
+            </View>
+            {event.eventType && (
+              <View
+                style={{
+                  backgroundColor: colors.background,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "500" }}>
+                  {capitalizeFirst(event.eventType)}
+                </Text>
+              </View>
+            )}
+            {event.isVerified && (
+              <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
+            )}
+          </View>
+
+          <Text
+            style={{ color: colors.foreground, fontSize: compact ? 14 : 16, fontWeight: "700", marginBottom: 6 }}
+            numberOfLines={2}
+          >
+            {event.title}
+          </Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+            <IconSymbol name="calendar" size={13} color={colors.muted} />
+            <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 6 }}>
+              {formatEventDate(dateStr)} · {formatEventTime(dateStr)}
+            </Text>
+          </View>
+
+          {event.venueName && (
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <IconSymbol name="mappin.and.ellipse" size={13} color={colors.muted} />
+              <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 6, flex: 1 }} numberOfLines={1}>
+                {event.venueName}{event.city ? ` · ${event.city}` : ""}
+              </Text>
+            </View>
+          )}
+
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            {event.nearestStation && (
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                🚉 {event.nearestStation}
+              </Text>
+            )}
+            {event.price && (
+              <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600" }}>
+                {event.price}
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
