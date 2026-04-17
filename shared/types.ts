@@ -32,7 +32,8 @@ export interface PreferencesUpdateParams {
   maxDistanceKm?: number;
   nearestStation?: string;
   maxWalkMinutes?: number;
-  danceStyleFilter?: "salsa" | "bachata" | "both";
+  danceStyles?: string[];
+  eventTypes?: string[];
   notificationsEnabled?: boolean;
 }
 

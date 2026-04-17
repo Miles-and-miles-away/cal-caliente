@@ -35,8 +35,8 @@ export interface ScrapedEvent {
   externalId?: string;
   title: string;
   description?: string;
-  danceStyle?: "salsa" | "bachata" | "both" | "other";
-  eventType?: "social" | "workshop" | "performance" | "festival" | "class" | "other";
+  danceStyle?: string;
+  eventType?: string;
   startAt: string;
   endAt?: string;
   venueName?: string;
@@ -262,8 +262,8 @@ export async function scrapeSource(source: {
           externalId: ev.externalId ?? null,
           title: ev.title,
           description: ev.description ?? null,
-          danceStyle: ev.danceStyle ?? null,
-          eventType: ev.eventType ?? null,
+          danceStyle: (ev.danceStyle ?? null) as InsertEvent["danceStyle"],
+          eventType: (ev.eventType ?? null) as InsertEvent["eventType"],
           startAt: new Date(ev.startAt),
           endAt: ev.endAt ? new Date(ev.endAt) : null,
           venueName: ev.venueName ?? null,

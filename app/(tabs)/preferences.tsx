@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   Switch,
@@ -13,11 +12,18 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useFavorites } from "@/lib/favorites-context";
 import {
   JAPAN_CITIES,
   DISTANCE_OPTIONS_KM,
   STORAGE_KEYS,
-} from "@/shared/types";
+  DANCE_STYLE_LABELS,
+  DANCE_STYLE_COLORS,
+  DANCE_STYLES,
+  EVENT_TYPES,
+  EVENT_TYPE_LABELS,
+  DEFAULT_PREFERENCES,
+} from "@/shared/constants";
 
 interface UserPreferences {
   city: string;
@@ -29,32 +35,18 @@ interface UserPreferences {
 }
 
 const DEFAULT_PREFS: UserPreferences = {
-  city: "Tokyo",
-  maxDistanceKm: 10,
-  nearestStation: "",
-  danceStyles: ["salsa", "bachata", "both"],
-  eventTypes: ["social", "workshop", "festival", "class", "performance"],
-  notificationsEnabled: true,
+  city: DEFAULT_PREFERENCES.city,
+  maxDistanceKm: DEFAULT_PREFERENCES.maxDistanceKm,
+  nearestStation: DEFAULT_PREFERENCES.nearestStation,
+  danceStyles: [...DEFAULT_PREFERENCES.danceStyles],
+  eventTypes: [...DEFAULT_PREFERENCES.eventTypes],
+  notificationsEnabled: DEFAULT_PREFERENCES.notificationsEnabled,
 };
-
-const DANCE_STYLE_TOGGLES = [
-  { label: "Salsa", value: "salsa" },
-  { label: "Bachata", value: "bachata" },
-  { label: "Both / Mixed", value: "both" },
-  { label: "Other Latin", value: "other" },
-];
-
-const EVENT_TYPE_TOGGLES = [
-  { label: "Social Dance", value: "social" },
-  { label: "Workshop", value: "workshop" },
-  { label: "Festival", value: "festival" },
-  { label: "Class", value: "class" },
-  { label: "Performance", value: "performance" },
-];
 
 export default function PreferencesScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { count: favCount } = useFavorites();
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFS);
   const [saved, setSaved] = useState(false);
 
@@ -98,30 +90,24 @@ export default function PreferencesScreen() {
     updatePref(key, updated);
   };
 
-  const SectionHeader = ({ title }: { title: string }) => (
-    <Text
-      style={{
-        color: colors.muted,
-        fontSize: 12,
-        fontWeight: "700",
-        textTransform: "uppercase",
-        letterSpacing: 0.5,
-        marginTop: 24,
-        marginBottom: 8,
-        paddingHorizontal: 4,
-      }}
-    >
-      {title}
-    </Text>
+  const selectAllDanceStyles = () => {
+    updatePref("danceStyles", DANCE_STYLES.filter((s) => s !== "other").map(String));
+  };
+
+  const clearAllDanceStyles = () => {
+    updatePref("danceStyles", []);
+  };
+
+  const SectionHeader = ({ title, rightAction }: { title: string; rightAction?: React.ReactNode }) => (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 8, paddingHorizontal: 4 }}>
+      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {title}
+      </Text>
+      {rightAction}
+    </View>
   );
 
-  const SettingRow = ({
-    label,
-    children,
-  }: {
-    label: string;
-    children: React.ReactNode;
-  }) => (
+  const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <View
       style={{
         flexDirection: "row",
@@ -146,12 +132,25 @@ export default function PreferencesScreen() {
     <ScreenContainer className="px-4">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={{ paddingTop: 8, paddingBottom: 12 }}>
-          <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Preferences</Text>
+          <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Settings</Text>
           {saved && (
             <Text style={{ color: colors.success, fontSize: 12, marginTop: 4 }}>
               Settings saved automatically
             </Text>
           )}
+        </View>
+
+        {/* My Calendar stats */}
+        <View style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <IconSymbol name="bookmark.fill" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>My Calendar</Text>
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                {favCount} saved event{favCount !== 1 ? "s" : ""}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Location */}
@@ -164,25 +163,17 @@ export default function PreferencesScreen() {
                 <Pressable
                   key={city.value}
                   onPress={() => updatePref("city", city.value)}
-                  style={({ pressed }) => [
-                    {
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      backgroundColor: prefs.city === city.value ? colors.primary : colors.background,
-                      borderWidth: 1,
-                      borderColor: prefs.city === city.value ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    backgroundColor: prefs.city === city.value ? colors.primary : colors.background,
+                    borderWidth: 1,
+                    borderColor: prefs.city === city.value ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
                 >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: prefs.city === city.value ? "#FFFFFF" : colors.muted,
-                    }}
-                  >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: prefs.city === city.value ? "#FFFFFF" : colors.muted }}>
                     {city.label}
                   </Text>
                 </Pressable>
@@ -198,25 +189,17 @@ export default function PreferencesScreen() {
                 <Pressable
                   key={km}
                   onPress={() => updatePref("maxDistanceKm", km)}
-                  style={({ pressed }) => [
-                    {
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      backgroundColor: prefs.maxDistanceKm === km ? colors.primary : colors.background,
-                      borderWidth: 1,
-                      borderColor: prefs.maxDistanceKm === km ? colors.primary : colors.border,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
+                  style={({ pressed }) => [{
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    backgroundColor: prefs.maxDistanceKm === km ? colors.primary : colors.background,
+                    borderWidth: 1,
+                    borderColor: prefs.maxDistanceKm === km ? colors.primary : colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
                 >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: prefs.maxDistanceKm === km ? "#FFFFFF" : colors.muted,
-                    }}
-                  >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: prefs.maxDistanceKm === km ? "#FFFFFF" : colors.muted }}>
                     {km} km
                   </Text>
                 </Pressable>
@@ -225,16 +208,7 @@ export default function PreferencesScreen() {
           </ScrollView>
         </SettingRow>
 
-        <View
-          style={{
-            backgroundColor: colors.surface,
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 8,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
+        <View style={{ backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
           <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "500", marginBottom: 8 }}>
             Nearest Station
           </Text>
@@ -256,28 +230,47 @@ export default function PreferencesScreen() {
           />
         </View>
 
-        {/* Dance Styles */}
-        <SectionHeader title="Dance Styles" />
-        {DANCE_STYLE_TOGGLES.map((item) => (
-          <SettingRow key={item.value} label={item.label}>
-            <Switch
-              value={prefs.danceStyles.includes(item.value)}
-              onValueChange={() => toggleArrayItem("danceStyles", item.value)}
-              trackColor={{ false: colors.border, true: colors.primary + "80" }}
-              thumbColor={prefs.danceStyles.includes(item.value) ? colors.primary : colors.muted}
-            />
-          </SettingRow>
-        ))}
+        {/* Dance Styles — all 14+ */}
+        <SectionHeader
+          title={`Dance Styles (${prefs.danceStyles.length})`}
+          rightAction={
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable onPress={selectAllDanceStyles} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "600" }}>All</Text>
+              </Pressable>
+              <Pressable onPress={clearAllDanceStyles} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>None</Text>
+              </Pressable>
+            </View>
+          }
+        />
+        {DANCE_STYLES.filter((s) => s !== "other").map((style) => {
+          const active = prefs.danceStyles.includes(style);
+          const dotColor = DANCE_STYLE_COLORS[style] ?? colors.muted;
+          return (
+            <SettingRow key={style} label={DANCE_STYLE_LABELS[style] ?? style}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dotColor }} />
+                <Switch
+                  value={active}
+                  onValueChange={() => toggleArrayItem("danceStyles", style)}
+                  trackColor={{ false: colors.border, true: dotColor + "80" }}
+                  thumbColor={active ? dotColor : colors.muted}
+                />
+              </View>
+            </SettingRow>
+          );
+        })}
 
         {/* Event Types */}
         <SectionHeader title="Event Types" />
-        {EVENT_TYPE_TOGGLES.map((item) => (
-          <SettingRow key={item.value} label={item.label}>
+        {EVENT_TYPES.filter((t) => t !== "other").map((type) => (
+          <SettingRow key={type} label={EVENT_TYPE_LABELS[type] ?? type}>
             <Switch
-              value={prefs.eventTypes.includes(item.value)}
-              onValueChange={() => toggleArrayItem("eventTypes", item.value)}
+              value={prefs.eventTypes.includes(type)}
+              onValueChange={() => toggleArrayItem("eventTypes", type)}
               trackColor={{ false: colors.border, true: colors.primary + "80" }}
-              thumbColor={prefs.eventTypes.includes(item.value) ? colors.primary : colors.muted}
+              thumbColor={prefs.eventTypes.includes(type) ? colors.primary : colors.muted}
             />
           </SettingRow>
         ))}
@@ -299,17 +292,7 @@ export default function PreferencesScreen() {
           onPress={() => router.push("/sites" as any)}
           style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.surface,
-              borderRadius: 12,
-              padding: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
             <IconSymbol name="link" size={18} color={colors.primary} />
             <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "500", flex: 1, marginLeft: 10 }}>
               Manage Event Sources

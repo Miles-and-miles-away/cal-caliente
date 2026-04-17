@@ -33,6 +33,13 @@ const MAPPING = {
   "plus": "add",
   "bell.fill": "notifications",
   "slider.horizontal.3": "tune",
+  "bookmark": "bookmark-outline",
+  "bookmark.fill": "bookmark",
+  "clock": "schedule",
+  "clock.arrow.circlepath": "history",
+  "star.fill": "star",
+  "location.fill": "my-location",
+  "chevron.left": "chevron-left",
 } as IconMapping;
 
 /**

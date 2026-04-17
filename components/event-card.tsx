@@ -1,7 +1,9 @@
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useFavorites } from "@/lib/favorites-context";
 import {
   DANCE_STYLE_COLORS,
   DANCE_STYLE_LABELS,
@@ -29,8 +31,17 @@ interface EventCardProps {
 export function EventCard({ event, compact = false }: EventCardProps) {
   const colors = useColors();
   const router = useRouter();
-  const styleColor = DANCE_STYLE_COLORS[event.danceStyle ?? "other"];
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const saved = isFavorite(event.id);
+  const styleColor = DANCE_STYLE_COLORS[event.danceStyle ?? "other"] ?? DANCE_STYLE_COLORS.other;
   const dateStr = typeof event.startAt === "string" ? event.startAt : event.startAt.toISOString();
+
+  const handleSave = () => {
+    toggleFavorite(event.id);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
 
   return (
     <Pressable
@@ -47,7 +58,7 @@ export function EventCard({ event, compact = false }: EventCardProps) {
           backgroundColor: colors.surface,
           borderRadius: 16,
           borderWidth: 1,
-          borderColor: colors.border,
+          borderColor: saved ? styleColor + "60" : colors.border,
           overflow: "hidden",
         }}
       >
@@ -85,6 +96,20 @@ export function EventCard({ event, compact = false }: EventCardProps) {
             {event.isVerified && (
               <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
             )}
+            {/* Spacer */}
+            <View style={{ flex: 1 }} />
+            {/* Save / Bookmark button */}
+            <Pressable
+              onPress={handleSave}
+              hitSlop={12}
+              style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 2 }]}
+            >
+              <IconSymbol
+                name={saved ? "bookmark.fill" : "bookmark"}
+                size={18}
+                color={saved ? styleColor : colors.muted}
+              />
+            </Pressable>
           </View>
 
           <Text

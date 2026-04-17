@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DANCE_STYLES,
   DANCE_STYLE_OPTIONS,
   DANCE_STYLE_COLORS,
   DANCE_STYLE_LABELS,
+  EVENT_TYPES,
   EVENT_TYPE_OPTIONS,
   EVENT_TYPE_LABELS,
   SOURCE_TYPE_OPTIONS,
@@ -22,6 +24,7 @@ import {
   API_DEFAULT_PAGE_SIZE,
   API_MAX_PAGE_SIZE,
   API_EVENT_LOOKAHEAD_DAYS,
+  API_EVENT_LOOKBACK_DAYS,
   STORAGE_KEYS,
   ALLOWED_URL_PROTOCOLS,
   MAX_URL_LENGTH,
@@ -31,30 +34,60 @@ import {
 } from "../shared/constants";
 
 describe("shared/constants", () => {
+  describe("DANCE_STYLES", () => {
+    it("should include all 15 dance styles", () => {
+      expect(DANCE_STYLES.length).toBe(15);
+      expect(DANCE_STYLES).toContain("salsa");
+      expect(DANCE_STYLES).toContain("bachata");
+      expect(DANCE_STYLES).toContain("zouk");
+      expect(DANCE_STYLES).toContain("kizomba");
+      expect(DANCE_STYLES).toContain("merengue");
+      expect(DANCE_STYLES).toContain("cha-cha-cha");
+      expect(DANCE_STYLES).toContain("cumbia");
+      expect(DANCE_STYLES).toContain("reggaeton");
+      expect(DANCE_STYLES).toContain("samba");
+      expect(DANCE_STYLES).toContain("tango");
+      expect(DANCE_STYLES).toContain("rumba");
+      expect(DANCE_STYLES).toContain("mambo");
+      expect(DANCE_STYLES).toContain("afro-latin");
+      expect(DANCE_STYLES).toContain("mixed");
+      expect(DANCE_STYLES).toContain("other");
+    });
+
+    it("should have unique values", () => {
+      expect(new Set(DANCE_STYLES).size).toBe(DANCE_STYLES.length);
+    });
+  });
+
   describe("DANCE_STYLE_OPTIONS", () => {
     it("should include an 'all' option as the first entry", () => {
       expect(DANCE_STYLE_OPTIONS[0]).toEqual({ label: "All", value: "all" });
     });
 
-    it("should include salsa, bachata, and both options", () => {
+    it("should include salsa, bachata, zouk, kizomba, tango options", () => {
       const values = DANCE_STYLE_OPTIONS.map((o) => o.value);
       expect(values).toContain("salsa");
       expect(values).toContain("bachata");
-      expect(values).toContain("both");
+      expect(values).toContain("zouk");
+      expect(values).toContain("kizomba");
+      expect(values).toContain("tango");
     });
 
     it("should have unique values", () => {
       const values = DANCE_STYLE_OPTIONS.map((o) => o.value);
       expect(new Set(values).size).toBe(values.length);
     });
+
+    it("should have one more option than DANCE_STYLES (for 'all')", () => {
+      expect(DANCE_STYLE_OPTIONS.length).toBe(DANCE_STYLES.length + 1);
+    });
   });
 
   describe("DANCE_STYLE_COLORS", () => {
     it("should have a color for every dance style", () => {
-      expect(DANCE_STYLE_COLORS["salsa"]).toBeDefined();
-      expect(DANCE_STYLE_COLORS["bachata"]).toBeDefined();
-      expect(DANCE_STYLE_COLORS["both"]).toBeDefined();
-      expect(DANCE_STYLE_COLORS["other"]).toBeDefined();
+      DANCE_STYLES.forEach((style) => {
+        expect(DANCE_STYLE_COLORS[style]).toBeDefined();
+      });
     });
 
     it("should return valid hex color strings", () => {
@@ -67,10 +100,33 @@ describe("shared/constants", () => {
 
   describe("DANCE_STYLE_LABELS", () => {
     it("should have a label for every dance style", () => {
+      DANCE_STYLES.forEach((style) => {
+        expect(typeof DANCE_STYLE_LABELS[style]).toBe("string");
+        expect(DANCE_STYLE_LABELS[style].length).toBeGreaterThan(0);
+      });
+    });
+
+    it("should have correct labels for key styles", () => {
       expect(DANCE_STYLE_LABELS["salsa"]).toBe("Salsa");
       expect(DANCE_STYLE_LABELS["bachata"]).toBe("Bachata");
-      expect(DANCE_STYLE_LABELS["both"]).toBe("Salsa & Bachata");
+      expect(DANCE_STYLE_LABELS["zouk"]).toBe("Zouk");
+      expect(DANCE_STYLE_LABELS["kizomba"]).toBe("Kizomba");
+      expect(DANCE_STYLE_LABELS["tango"]).toBe("Tango");
       expect(DANCE_STYLE_LABELS["other"]).toBe("Other");
+    });
+  });
+
+  describe("EVENT_TYPES", () => {
+    it("should include all 8 event types", () => {
+      expect(EVENT_TYPES.length).toBe(8);
+      expect(EVENT_TYPES).toContain("social");
+      expect(EVENT_TYPES).toContain("workshop");
+      expect(EVENT_TYPES).toContain("performance");
+      expect(EVENT_TYPES).toContain("festival");
+      expect(EVENT_TYPES).toContain("class");
+      expect(EVENT_TYPES).toContain("congress");
+      expect(EVENT_TYPES).toContain("bootcamp");
+      expect(EVENT_TYPES).toContain("other");
     });
   });
 
@@ -81,6 +137,8 @@ describe("shared/constants", () => {
       expect(values).toContain("workshop");
       expect(values).toContain("festival");
       expect(values).toContain("class");
+      expect(values).toContain("congress");
+      expect(values).toContain("bootcamp");
     });
 
     it("should have unique values", () => {
@@ -91,7 +149,7 @@ describe("shared/constants", () => {
 
   describe("EVENT_TYPE_LABELS", () => {
     it("should have labels for all event types including other", () => {
-      expect(EVENT_TYPE_LABELS["social"]).toBe("Social");
+      expect(EVENT_TYPE_LABELS["social"]).toBe("Social Dance");
       expect(EVENT_TYPE_LABELS["other"]).toBe("Other");
     });
   });
@@ -135,6 +193,8 @@ describe("shared/constants", () => {
       expect(values).toContain("Osaka");
       expect(values).toContain("Nagoya");
       expect(values).toContain("Fukuoka");
+      expect(values).toContain("Kyoto");
+      expect(values).toContain("Sapporo");
     });
 
     it("should have unique values", () => {
@@ -144,11 +204,12 @@ describe("shared/constants", () => {
   });
 
   describe("DATE_RANGE_OPTIONS", () => {
-    it("should include upcoming, week, month, and all", () => {
+    it("should include upcoming, week, month, past_month, and all", () => {
       const values = DATE_RANGE_OPTIONS.map((o) => o.value);
       expect(values).toContain("upcoming");
       expect(values).toContain("week");
       expect(values).toContain("month");
+      expect(values).toContain("past_month");
       expect(values).toContain("all");
     });
   });
@@ -176,6 +237,21 @@ describe("shared/constants", () => {
 
     it("should have a positive max distance", () => {
       expect(DEFAULT_PREFERENCES.maxDistanceKm).toBeGreaterThan(0);
+    });
+
+    it("should include all major dance styles in default preferences", () => {
+      expect(DEFAULT_PREFERENCES.danceStyles).toContain("salsa");
+      expect(DEFAULT_PREFERENCES.danceStyles).toContain("bachata");
+      expect(DEFAULT_PREFERENCES.danceStyles).toContain("zouk");
+      expect(DEFAULT_PREFERENCES.danceStyles).toContain("kizomba");
+      expect(DEFAULT_PREFERENCES.danceStyles).toContain("tango");
+    });
+
+    it("should include all major event types in default preferences", () => {
+      expect(DEFAULT_PREFERENCES.eventTypes).toContain("social");
+      expect(DEFAULT_PREFERENCES.eventTypes).toContain("workshop");
+      expect(DEFAULT_PREFERENCES.eventTypes).toContain("festival");
+      expect(DEFAULT_PREFERENCES.eventTypes).toContain("class");
     });
   });
 
@@ -232,6 +308,11 @@ describe("shared/constants", () => {
     it("should have a positive lookahead days", () => {
       expect(API_EVENT_LOOKAHEAD_DAYS).toBeGreaterThan(0);
     });
+
+    it("should have a positive lookback days for history", () => {
+      expect(API_EVENT_LOOKBACK_DAYS).toBeGreaterThan(0);
+      expect(API_EVENT_LOOKBACK_DAYS).toBe(30);
+    });
   });
 
   describe("STORAGE_KEYS", () => {
@@ -244,6 +325,10 @@ describe("shared/constants", () => {
       Object.values(STORAGE_KEYS).forEach((key) => {
         expect(key.startsWith("@salsa_")).toBe(true);
       });
+    });
+
+    it("should include FAVORITES key", () => {
+      expect(STORAGE_KEYS.FAVORITES).toBeDefined();
     });
   });
 

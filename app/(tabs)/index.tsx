@@ -1,13 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Pressable, Text, View } from "react-native";
+import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { EventCard } from "@/components/event-card";
 import { FilterChips } from "@/components/filter-chips";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
-import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS } from "@/shared/types";
+import { useFavorites } from "@/lib/favorites-context";
+import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS } from "@/shared/constants";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+type CalendarMode = "all" | "my";
 
 function getDaysInMonth(year: number, month: number): Date[] {
   const days: Date[] = [];
@@ -25,11 +29,13 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export default function CalendarScreen() {
   const colors = useColors();
+  const { isFavorite, count: favCount } = useFavorites();
   const today = useMemo(() => new Date(), []);
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
+  const [calMode, setCalMode] = useState<CalendarMode>("all");
 
   const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
   const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
@@ -41,7 +47,13 @@ export default function CalendarScreen() {
     limit: 200,
   });
 
-  const eventsList = (events ?? []) as any[];
+  const eventsList = useMemo(() => {
+    const raw = (events ?? []) as any[];
+    if (calMode === "my") {
+      return raw.filter((ev: any) => isFavorite(ev.id));
+    }
+    return raw;
+  }, [events, calMode, isFavorite]);
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -72,6 +84,13 @@ export default function CalendarScreen() {
     else setCurrentMonth(currentMonth + 1);
   };
 
+  const handleModeToggle = (mode: CalendarMode) => {
+    setCalMode(mode);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   const monthLabel = new Date(currentYear, currentMonth).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -88,6 +107,32 @@ export default function CalendarScreen() {
 
   const ListHeader = () => (
     <View>
+      {/* All / My Cal Toggle */}
+      <View style={{ flexDirection: "row", marginHorizontal: 16, marginTop: 8, marginBottom: 4, borderRadius: 10, backgroundColor: colors.surface, padding: 3 }}>
+        {(["all", "my"] as CalendarMode[]).map((mode) => {
+          const active = calMode === mode;
+          const label = mode === "all" ? "All Events" : `My Calendar${favCount > 0 ? ` (${favCount})` : ""}`;
+          return (
+            <Pressable
+              key={mode}
+              onPress={() => handleModeToggle(mode)}
+              style={({ pressed }) => [{
+                flex: 1,
+                paddingVertical: 8,
+                borderRadius: 8,
+                alignItems: "center",
+                backgroundColor: active ? colors.primary : "transparent",
+                opacity: pressed ? 0.8 : 1,
+              }]}
+            >
+              <Text style={{ color: active ? "#FFFFFF" : colors.muted, fontSize: 13, fontWeight: "600" }}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {/* Month navigation */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
         <Pressable onPress={goToPrevMonth} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 8 }]}>
@@ -119,23 +164,19 @@ export default function CalendarScreen() {
           const isSelected = isSameDay(day, selectedDate);
           const isToday = isSameDay(day, today);
           const hasEvents = dayEvents.length > 0;
-
-          // Get unique dance styles for dot indicators
           const styles = [...new Set(dayEvents.map((e: any) => e.danceStyle ?? "other"))];
 
           return (
             <Pressable
               key={day.toISOString()}
               onPress={() => setSelectedDate(day)}
-              style={({ pressed }) => [
-                {
-                  width: "14.28%",
-                  height: 44,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
+              style={({ pressed }) => [{
+                width: "14.28%",
+                height: 44,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.7 : 1,
+              }]}
             >
               <View
                 style={{
@@ -159,7 +200,6 @@ export default function CalendarScreen() {
                   {day.getDate()}
                 </Text>
               </View>
-              {/* Event dots */}
               {hasEvents && (
                 <View style={{ flexDirection: "row", gap: 2, marginTop: 1, position: "absolute", bottom: 2 }}>
                   {styles.slice(0, 3).map((s: string, i: number) => (
@@ -180,7 +220,7 @@ export default function CalendarScreen() {
         })}
       </View>
 
-      {/* Dance style filter */}
+      {/* Dance style filter — horizontal scroll */}
       <View style={{ marginBottom: 12 }}>
         <FilterChips options={DANCE_STYLE_OPTIONS} selected={danceFilter} onSelect={setDanceFilter} />
       </View>
@@ -192,6 +232,7 @@ export default function CalendarScreen() {
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
           {selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? "s" : ""}
+          {calMode === "my" ? " saved" : ""}
         </Text>
       </View>
     </View>
@@ -210,9 +251,13 @@ export default function CalendarScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             ) : (
               <View style={{ alignItems: "center" }}>
-                <Text style={{ fontSize: 40, marginBottom: 8 }}>💃</Text>
+                <Text style={{ fontSize: 40, marginBottom: 8 }}>
+                  {calMode === "my" ? "🔖" : "💃"}
+                </Text>
                 <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
-                  No events on this date.{"\n"}Try selecting another day!
+                  {calMode === "my"
+                    ? "No saved events on this date.\nBrowse All Events and tap the bookmark to save!"
+                    : "No events on this date.\nTry selecting another day!"}
                 </Text>
               </View>
             )}

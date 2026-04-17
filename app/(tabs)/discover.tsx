@@ -18,7 +18,8 @@ import {
   DANCE_STYLE_OPTIONS,
   JAPAN_CITIES,
   DATE_RANGE_OPTIONS,
-} from "@/shared/types";
+  API_EVENT_LOOKBACK_DAYS,
+} from "@/shared/constants";
 
 export default function DiscoverScreen() {
   const colors = useColors();
@@ -40,7 +41,11 @@ export default function DiscoverScreen() {
   } else if (dateRange === "month") {
     startDate = now.toISOString();
     endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  } else if (dateRange === "past_month") {
+    startDate = new Date(now.getTime() - API_EVENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    endDate = now.toISOString();
   }
+  // "all" → no date filters
 
   const { data: events, isLoading } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
@@ -156,6 +161,7 @@ export default function DiscoverScreen() {
             <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
               <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
                 {eventsList.length} event{eventsList.length !== 1 ? "s" : ""} found
+                {dateRange === "past_month" ? " (past month)" : ""}
               </Text>
             </View>
           </View>

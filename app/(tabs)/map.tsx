@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -13,16 +14,28 @@ import { FilterChips } from "@/components/filter-chips";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
-import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS, JAPAN_CITIES, API_EVENT_LOOKAHEAD_DAYS, formatEventDate, formatEventTime } from "@/shared/types";
+import {
+  DANCE_STYLE_OPTIONS,
+  DANCE_STYLE_COLORS,
+  DANCE_STYLE_LABELS,
+  JAPAN_CITIES,
+  API_EVENT_LOOKAHEAD_DAYS,
+  DEFAULT_MAP_REGION,
+} from "@/shared/constants";
+import { formatEventDate, formatEventTime } from "@/shared/types";
 
 export default function MapScreen() {
   const colors = useColors();
   const router = useRouter();
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
   const now = useMemo(() => new Date(), []);
-  const lookaheadEnd = useMemo(() => new Date(now.getTime() + API_EVENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000), [now]);
+  const lookaheadEnd = useMemo(
+    () => new Date(now.getTime() + API_EVENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000),
+    [now]
+  );
 
   const { data: events, isLoading } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
@@ -37,7 +50,6 @@ export default function MapScreen() {
     return (events as any[]).filter((e: any) => e.latitude && e.longitude);
   }, [events]);
 
-  // Group events by city
   const eventsByCity = useMemo(() => {
     const map: Record<string, any[]> = {};
     for (const ev of eventsWithLocation) {
@@ -50,50 +62,99 @@ export default function MapScreen() {
 
   const cities = Object.keys(eventsByCity).sort();
 
-  const formatTime = (dateStr: string) =>
-    `${formatEventDate(dateStr)} · ${formatEventTime(dateStr)}`;
+  // Build an inline HTML map using Leaflet (no API key needed)
+  const mapHtml = useMemo(() => {
+    const markers = eventsWithLocation.map((ev: any) => {
+      const color = DANCE_STYLE_COLORS[ev.danceStyle ?? "other"] ?? "#718096";
+      const label = (ev.title ?? "").replace(/'/g, "\\'").replace(/\n/g, " ");
+      const style = DANCE_STYLE_LABELS[ev.danceStyle ?? "other"] ?? "Dance";
+      return `L.circleMarker([${ev.latitude}, ${ev.longitude}], {radius: 8, fillColor: '${color}', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9}).addTo(map).bindPopup('<b>${label}</b><br/><small>${style}</small>');`;
+    });
+
+    return `<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;}</style>
+</head><body>
+<div id="map"></div>
+<script>
+var map = L.map('map').setView([${DEFAULT_MAP_REGION.latitude}, ${DEFAULT_MAP_REGION.longitude}], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap',
+  maxZoom: 18
+}).addTo(map);
+${markers.join("\n")}
+</script>
+</body></html>`;
+  }, [eventsWithLocation]);
+
+  const openEventInMaps = (ev: any) => {
+    if (!ev?.latitude || !ev?.longitude) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${ev.latitude},${ev.longitude}`;
+    if (Platform.OS === "web") {
+      window.open(url, "_blank");
+    } else {
+      Linking.openURL(url);
+    }
+  };
 
   return (
     <ScreenContainer>
-      <View className="px-5 pt-2 pb-3">
-        <Text className="text-foreground text-2xl font-bold">Map</Text>
+      <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+        <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Map</Text>
       </View>
 
       {/* Filters */}
-      <View className="mb-2">
+      <View style={{ marginBottom: 6 }}>
         <FilterChips options={DANCE_STYLE_OPTIONS} selected={danceFilter} onSelect={setDanceFilter} />
       </View>
-      <View className="mb-3">
+      <View style={{ marginBottom: 8 }}>
         <FilterChips options={JAPAN_CITIES} selected={cityFilter} onSelect={setCityFilter} />
       </View>
 
-      {/* Info banner */}
-      <View className="mx-4 mb-3 bg-surface rounded-xl border border-border p-3 flex-row items-center">
-        <IconSymbol name="map.fill" size={20} color={colors.primary} />
-        <View className="ml-3 flex-1">
-          <Text className="text-foreground text-xs font-semibold">
-            {eventsWithLocation.length} events with locations
-          </Text>
-          <Text className="text-muted text-xs">
-            Tap an event for details and directions via Google Maps
-          </Text>
-        </View>
-      </View>
-
       {isLoading ? (
-        <View className="items-center py-16">
+        <View style={{ alignItems: "center", paddingVertical: 64 }}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+          {/* In-app Map */}
+          {Platform.OS === "web" ? (
+            <View style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+              <iframe
+                srcDoc={mapHtml}
+                style={{ width: "100%", height: 280, border: "none" }}
+                title="Event Map"
+              />
+            </View>
+          ) : (
+            <View style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, height: 200, alignItems: "center", justifyContent: "center" }}>
+              <IconSymbol name="map.fill" size={32} color={colors.primary} />
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 8, textAlign: "center" }}>
+                Interactive map available in Expo Go.{"\n"}Tap events below for Google Maps directions.
+              </Text>
+            </View>
+          )}
+
+          {/* Stats banner */}
+          <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, flexDirection: "row", alignItems: "center" }}>
+            <IconSymbol name="mappin.and.ellipse" size={18} color={colors.primary} />
+            <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", marginLeft: 8 }}>
+              {eventsWithLocation.length} events with locations across {cities.length} cit{cities.length !== 1 ? "ies" : "y"}
+            </Text>
+          </View>
+
+          {/* Events grouped by city */}
           {cities.map((city) => (
-            <View key={city} className="mb-4">
-              <View className="flex-row items-center px-5 mb-2">
+            <View key={city} style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 8 }}>
                 <Text style={{ fontSize: 14 }}>📍</Text>
-                <Text className="text-foreground text-sm font-bold ml-1.5">
+                <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
                   {city}
                 </Text>
-                <Text className="text-muted text-xs ml-2">
+                <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 8 }}>
                   {eventsByCity[city].length} event{eventsByCity[city].length !== 1 ? "s" : ""}
                 </Text>
               </View>
@@ -104,26 +165,37 @@ export default function MapScreen() {
                   onPress={() => router.push(`/event/${event.id}` as any)}
                   style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <View className="flex-row items-center mx-4 mb-1.5 bg-surface rounded-xl border border-border px-3 py-3">
-                    <View
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 5,
-                        backgroundColor: DANCE_STYLE_COLORS[event.danceStyle ?? "other"],
-                        marginRight: 12,
-                      }}
-                    />
-                    <View className="flex-1">
-                      <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginHorizontal: 16,
+                    marginBottom: 6,
+                    backgroundColor: selectedEventId === event.id ? colors.primary + "10" : colors.surface,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: selectedEventId === event.id ? colors.primary + "40" : colors.border,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: DANCE_STYLE_COLORS[event.danceStyle ?? "other"] ?? colors.muted, marginRight: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
                         {event.title}
                       </Text>
-                      <Text className="text-muted text-xs mt-0.5">
-                        {event.venueName ?? "TBA"} · {event.nearestStation ? `🚉 ${event.nearestStation}` : ""}
+                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
+                        {event.venueName ?? "TBA"}{event.nearestStation ? ` · 🚉 ${event.nearestStation}` : ""}
                       </Text>
-                      <Text className="text-muted text-xs">{formatTime(event.startAt)}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        {formatEventDate(event.startAt)} · {formatEventTime(event.startAt)}
+                      </Text>
                     </View>
-                    <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+                    <Pressable
+                      onPress={() => openEventInMaps(event)}
+                      hitSlop={10}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
+                    >
+                      <IconSymbol name="location.fill" size={18} color={colors.primary} />
+                    </Pressable>
                   </View>
                 </Pressable>
               ))}
@@ -131,9 +203,9 @@ export default function MapScreen() {
           ))}
 
           {cities.length === 0 && (
-            <View className="items-center py-12">
+            <View style={{ alignItems: "center", paddingVertical: 48 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>🗺️</Text>
-              <Text className="text-muted text-sm text-center">
+              <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
                 No events with location data found.{"\n"}Try changing the filters.
               </Text>
             </View>

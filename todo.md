@@ -59,3 +59,41 @@
 - [x] Test server/scraper.ts adapter pattern and URL sanitization (28 tests passed)
 - [x] Test server seed data logic (verified via API integration)
 - [x] Run all tests after each phase completion (90 passed, 1 skipped)
+
+## Expanded Dance Styles & History
+- [ ] Research and list all major Latin/partner dance styles
+- [ ] Update shared/constants.ts with full dance style list
+- [ ] Update shared/types.ts DanceEvent type to support new styles
+- [ ] Update drizzle schema eventType enum to include new styles
+- [ ] Update backend API to support 1-month historical search (lookback)
+- [ ] Update Calendar screen filters with expanded dance styles
+- [ ] Update Discover screen filters with expanded dance styles
+- [ ] Update Preferences screen with all dance style options
+- [ ] Add "Show Past Events" toggle to Calendar and Discover
+- [ ] Update seed data with events for all new dance styles
+- [ ] Update filter-chips component to handle scrollable list of styles
+- [ ] Run all unit tests after changes
+- [ ] Update documentation with new dance styles
+- [ ] Add in-app interactive map with event pins (expo-maps)
+- [ ] Fix "Open in Maps" web fallback to use Google Maps URL
+- [ ] Create FavoritesContext provider with AsyncStorage persistence
+- [ ] Add "All Events" / "My Calendar" toggle on Calendar screen
+- [ ] Add save/bookmark button on EventCard component
+- [ ] Add save button on Discover screen event cards
+- [ ] Add save button on Event Detail screen
+- [ ] Filter calendar to show only saved events in "My Calendar" mode
+
+
+## Resilience & Offline Support
+- [x] Conduct comprehensive resilience audit of all pages and functions
+- [x] Document all pages, functions, and edge cases (docs/resilience-audit.md)
+- [x] Implement local event caching with AsyncStorage (lib/cache.ts)
+- [x] Add error boundaries to all screens (components/error-boundary.tsx)
+- [x] Create network state detection (lib/network-context.tsx)
+- [x] Add offline indicator (components/offline-indicator.tsx)
+- [x] Write unit tests for cache utilities (17 tests passed)
+- [x] Write unit tests for network context (5 tests passed)
+- [ ] Integrate caching into Calendar and Discover screens
+- [ ] Implement retry logic for failed API calls
+- [ ] Test all failure scenarios (no network, server down, DB crash)
+- [ ] Update resilience documentation

@@ -1,12 +1,16 @@
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useFavorites } from "@/lib/favorites-context";
 import { trpc } from "@/lib/trpc";
 import {
   DANCE_STYLE_COLORS,
   DANCE_STYLE_LABELS,
+} from "@/shared/constants";
+import {
   formatFullDate,
   formatEventTime,
   capitalizeFirst,
@@ -17,6 +21,8 @@ export default function EventDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = parseInt(id ?? "0", 10);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const saved = isFavorite(eventId);
 
   const { data: event, isLoading } = trpc.events.get.useQuery(
     { id: eventId },
@@ -25,11 +31,29 @@ export default function EventDetailScreen() {
 
   const ev = event as any;
 
+  const handleSave = () => {
+    toggleFavorite(eventId);
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(
+        saved
+          ? Haptics.NotificationFeedbackType.Warning
+          : Haptics.NotificationFeedbackType.Success
+      );
+    }
+  };
+
   const openMaps = () => {
     if (!ev?.latitude || !ev?.longitude) return;
     const lat = ev.latitude;
     const lng = ev.longitude;
     const label = encodeURIComponent(ev.venueName ?? "Event");
+
+    if (Platform.OS === "web") {
+      // Always use Google Maps on web
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+      return;
+    }
+
     const url =
       Platform.OS === "ios"
         ? `maps:0,0?q=${label}@${lat},${lng}`
@@ -70,26 +94,43 @@ export default function EventDetailScreen() {
     );
   }
 
-  const styleColor = DANCE_STYLE_COLORS[ev.danceStyle ?? "other"];
+  const styleColor = DANCE_STYLE_COLORS[ev.danceStyle ?? "other"] ?? DANCE_STYLE_COLORS.other;
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Header */}
+        {/* Header with back, save, share */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 }}>
           <Pressable onPress={() => router.back()} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
             <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
           </Pressable>
-          <Pressable onPress={shareEvent} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
-            <IconSymbol name="square.and.arrow.up" size={22} color={colors.foreground} />
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 16 }}>
+            <Pressable onPress={handleSave} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
+              <IconSymbol
+                name={saved ? "bookmark.fill" : "bookmark"}
+                size={22}
+                color={saved ? styleColor : colors.foreground}
+              />
+            </Pressable>
+            <Pressable onPress={shareEvent} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
+              <IconSymbol name="square.and.arrow.up" size={22} color={colors.foreground} />
+            </Pressable>
+          </View>
         </View>
+
+        {/* Save banner when saved */}
+        {saved && (
+          <View style={{ backgroundColor: styleColor + "15", marginHorizontal: 16, borderRadius: 10, padding: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <IconSymbol name="bookmark.fill" size={14} color={styleColor} />
+            <Text style={{ color: styleColor, fontSize: 12, fontWeight: "600" }}>Saved to My Calendar</Text>
+          </View>
+        )}
 
         <View style={{ height: 4, backgroundColor: styleColor, marginHorizontal: 16, borderRadius: 2 }} />
 
         <View style={{ padding: 20 }}>
           {/* Badges */}
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             <View style={{ backgroundColor: styleColor + "20", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 14 }}>
               <Text style={{ color: styleColor, fontSize: 12, fontWeight: "700" }}>
                 {DANCE_STYLE_LABELS[ev.danceStyle ?? "other"] ?? "Dance"}
@@ -132,7 +173,9 @@ export default function EventDetailScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>{ev.venueName}</Text>
                     {ev.venueAddress && <Text style={{ color: colors.muted, fontSize: 13, marginTop: 2 }}>{ev.venueAddress}</Text>}
-                    <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "600", marginTop: 4 }}>Open in Maps →</Text>
+                    <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "600", marginTop: 4 }}>
+                      {Platform.OS === "web" ? "Open in Google Maps" : "Open in Maps"} →
+                    </Text>
                   </View>
                 </View>
               </Pressable>
@@ -183,6 +226,33 @@ export default function EventDetailScreen() {
               <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 22 }}>{ev.description}</Text>
             </View>
           )}
+
+          {/* Large Save Button */}
+          <Pressable
+            onPress={handleSave}
+            style={({ pressed }) => [{
+              backgroundColor: saved ? styleColor + "15" : styleColor,
+              borderRadius: 14,
+              padding: 16,
+              alignItems: "center",
+              marginBottom: 12,
+              borderWidth: saved ? 1.5 : 0,
+              borderColor: styleColor,
+              opacity: pressed ? 0.8 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <IconSymbol
+                name={saved ? "bookmark.fill" : "bookmark"}
+                size={18}
+                color={saved ? styleColor : "#FFFFFF"}
+              />
+              <Text style={{ color: saved ? styleColor : "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
+                {saved ? "Saved to My Calendar" : "Save to My Calendar"}
+              </Text>
+            </View>
+          </Pressable>
 
           {/* Source link */}
           {ev.sourceUrl && (
