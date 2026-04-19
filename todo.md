@@ -97,3 +97,10 @@
 - [ ] Implement retry logic for failed API calls
 - [ ] Test all failure scenarios (no network, server down, DB crash)
 - [ ] Update resilience documentation
+
+
+## Rebranding to Cal🔥Caliente
+- [x] Generate new logo: dancing couple with woman's fire costume
+- [x] Update app.config.ts with new app name
+- [x] Copy logo to all asset locations
+- [x] Run tests and verify branding (122 tests passing)
