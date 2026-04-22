@@ -4,6 +4,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -21,6 +22,7 @@ import {
   JAPAN_CITIES,
   API_EVENT_LOOKAHEAD_DAYS,
   DEFAULT_MAP_REGION,
+  CITY_COORDINATES,
 } from "@/shared/constants";
 import { formatEventDate, formatEventTime } from "@/shared/types";
 
@@ -30,6 +32,7 @@ export default function MapScreen() {
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const now = useMemo(() => new Date(), []);
   const lookaheadEnd = useMemo(
@@ -37,13 +40,22 @@ export default function MapScreen() {
     [now]
   );
 
-  const { data: events, isLoading } = trpc.events.list.useQuery({
+  const { data: events, isLoading, refetch } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
     city: cityFilter || undefined,
     startDate: now.toISOString(),
     endDate: lookaheadEnd.toISOString(),
     limit: 100,
   });
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const eventsWithLocation = useMemo(() => {
     if (!events) return [];
@@ -62,16 +74,25 @@ export default function MapScreen() {
 
   const cities = Object.keys(eventsByCity).sort();
 
+  // Get map center based on selected city
+  const mapCenter = useMemo(() => {
+    if (cityFilter && cityFilter in CITY_COORDINATES) {
+      const coords = CITY_COORDINATES[cityFilter as keyof typeof CITY_COORDINATES];
+      return { lat: coords.lat, lng: coords.lng, zoom: 12 };
+    }
+    return { lat: DEFAULT_MAP_REGION.latitude, lng: DEFAULT_MAP_REGION.longitude, zoom: 10 };
+  }, [cityFilter]);
+
   // Build an inline HTML map using Leaflet (no API key needed)
   const mapHtml = useMemo(() => {
     const markers = eventsWithLocation.map((ev: any) => {
       const color = DANCE_STYLE_COLORS[ev.danceStyle ?? "other"] ?? "#718096";
-      const label = (ev.title ?? "").replace(/'/g, "\\'").replace(/\n/g, " ");
+      const label = (ev.title ?? "").replace(/'/g, "").replace(/\n/g, " ");
       const style = DANCE_STYLE_LABELS[ev.danceStyle ?? "other"] ?? "Dance";
       return `L.circleMarker([${ev.latitude}, ${ev.longitude}], {radius: 8, fillColor: '${color}', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9}).addTo(map).bindPopup('<b>${label}</b><br/><small>${style}</small>');`;
     });
 
-    return `<!DOCTYPE html>
+    return `<!DOCTYPE html
 <html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -80,7 +101,7 @@ export default function MapScreen() {
 </head><body>
 <div id="map"></div>
 <script>
-var map = L.map('map').setView([${DEFAULT_MAP_REGION.latitude}, ${DEFAULT_MAP_REGION.longitude}], 10);
+var map = L.map('map').setView([${mapCenter.lat}, ${mapCenter.lng}], ${mapCenter.zoom});
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap',
   maxZoom: 18
@@ -88,7 +109,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 ${markers.join("\n")}
 </script>
 </body></html>`;
-  }, [eventsWithLocation]);
+  }, [eventsWithLocation, mapCenter]);
 
   const openEventInMaps = (ev: any) => {
     if (!ev?.latitude || !ev?.longitude) return;
@@ -119,7 +140,17 @@ ${markers.join("\n")}
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+        >
           {/* In-app Map */}
           {Platform.OS === "web" ? (
             <View style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>

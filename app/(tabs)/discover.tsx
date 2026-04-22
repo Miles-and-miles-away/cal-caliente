@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   Text,
   TextInput,
   View,
@@ -28,6 +29,7 @@ export default function DiscoverScreen() {
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState<string>("upcoming");
+  const [refreshing, setRefreshing] = useState(false);
 
   const now = new Date();
   let startDate: string | undefined;
@@ -47,7 +49,7 @@ export default function DiscoverScreen() {
   }
   // "all" → no date filters
 
-  const { data: events, isLoading } = trpc.events.list.useQuery({
+  const { data: events, isLoading, refetch } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
     city: cityFilter || undefined,
     startDate,
@@ -57,6 +59,15 @@ export default function DiscoverScreen() {
   });
 
   const eventsList = (events ?? []) as any[];
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const renderEvent = useCallback(
     ({ item }: { item: any }) => (
@@ -181,6 +192,14 @@ export default function DiscoverScreen() {
           </View>
         }
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       />
     </ScreenContainer>
   );

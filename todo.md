@@ -1,6 +1,6 @@
-# Salsa & Bachata Japan — Project TODO
+# Cal🔥Caliente — Project TODO
 
-## Core Features
+## Core Features (Completed)
 - [x] Database schema (events, sources, preferences, scrape_logs)
 - [x] Backend API routes (events, sources, preferences, scraper)
 - [x] Event scraper engine with adapter pattern
@@ -13,94 +13,201 @@
 - [x] Event detail screen with directions
 - [x] Sites management screen (register custom sources)
 - [x] Tab navigation (Calendar, Discover, Map, Settings)
+- [x] 14+ dance styles with color-coded filters
+- [x] 1-month event history lookback
+- [x] Favorites/save system with "All Events" / "My Calendar" toggle
+- [x] Resilience framework: offline support, error boundaries, caching
+- [x] Cal🔥Caliente branding with custom fire costume logo
 
-## Scraping Framework
-- [x] HTML scraper adapter (LLM-ready)
-- [x] Facebook Graph API scraper adapter
-- [x] Instagram Graph API scraper adapter
-- [x] RSS/iCal scraper adapter
-- [x] Placeholder stubs for API keys (Option A)
+## User Authentication & Authorization
+- [ ] Set up Gmail OAuth integration (expo-auth-session)
+- [ ] Add user table to database schema (id, email, name, avatar, created_at, is_admin)
+- [ ] Create login/signup screens
+- [ ] Add user context provider for global auth state
+- [ ] Implement protected routes (redirect to login if not authenticated)
+- [ ] Add logout functionality to Settings screen
+- [ ] Store auth token securely in device keychain (expo-secure-store)
+- [ ] Add user profile screen (name, email, avatar, preferences)
+- [ ] Implement "Remember me" functionality for faster re-login
 
-## Code Quality & Security Audit
-- [x] Audit all files for consistent naming conventions
-- [x] Extract all magic strings/numbers into shared constants
-- [x] Add input validation and sanitization on all API endpoints
-- [ ] Add rate limiting stubs on scraper and mutation endpoints
-- [ ] Ensure tRPC mutations use protectedProcedure where appropriate
-- [x] Sanitize user-submitted URLs in source registration
-- [x] Add XSS protection for user-generated content display
-- [x] Review environment variable handling and secret management
-- [x] Ensure no API keys or secrets are exposed to frontend
-- [x] Add escapeLikePattern for SQL LIKE injection prevention
-- [x] Reduce JSON body limit from 50mb to 1mb
-- [x] Replace magic numbers with named constants
+## User-Generated Events & Sharing
+- [ ] Add user_events table to schema (id, user_id, title, description, date, time, location, lat, lng, dance_style, image_url, is_shared, created_at, updated_at)
+- [ ] Create event submission form screen with photo upload
+- [ ] Add "Share with Community" toggle on submission form
+- [ ] Display user-generated events in Discover tab with "Community Events" filter
+- [ ] Allow users to edit their own submissions
+- [ ] Allow users to delete their own submissions
+- [ ] Show event creator name and avatar on event cards
+- [ ] Add "Report Event" button for inappropriate content
 
-## Documentation
-- [x] Create docs/README.md — App overview and getting started
-- [x] Create docs/architecture.md — System architecture and data flow
-- [x] Create docs/routing.md — All screens and navigation routes
-- [x] Create docs/screens.md — Detailed page-by-page documentation
-- [x] Create docs/api.md — Backend API reference
-- [x] Create docs/security.md — Security practices and guidelines
-- [x] Create docs/scraping.md — Event scraping engine documentation
-- [x] Create docs/deployment.md — Deployment and configuration guide
-- [x] Add note: Update documentation after each phase is completed
+## Automatic Content Moderation
+- [ ] Implement profanity filter (block rude/offensive words in titles/descriptions)
+- [ ] Add word filter list to server constants
+- [ ] Flag events with inappropriate language (hide by default, show warning)
+- [ ] Log flagged events for admin review
+- [ ] Create moderation status field in user_events table (pending, approved, hidden)
+- [ ] Auto-approve events that pass moderation checks
 
-## Branding
-- [x] Generate custom app logo
-- [x] Update app.config.ts with branding
-- [x] Copy logo to all required asset locations
+## User Management & Blocking
+- [ ] Add user_blocks table (blocker_id, blocked_user_id, created_at)
+- [ ] Add "Hide events from this user" button on event cards
+- [ ] Filter out hidden user's events from all screens
+- [ ] Show blocked users list in Settings
+- [ ] Allow users to unblock users
+- [ ] Prevent blocked users from seeing your shared events
 
-## Unit Tests
-- [x] Test shared/constants.ts exports and values (38 tests passed)
-- [x] Test shared/types.ts formatting helpers (15 tests passed)
-- [x] Test server/db.ts escapeLikePattern helper (9 tests passed)
-- [x] Test server/routers.ts input validation schemas (covered via tRPC integration)
-- [x] Test server/scraper.ts adapter pattern and URL sanitization (28 tests passed)
-- [x] Test server seed data logic (verified via API integration)
-- [x] Run all tests after each phase completion (90 passed, 1 skipped)
+## Event Attendance Tracking
+- [ ] Add user_event_attendance table (user_id, event_id, status: 'interested'/'attending'/'not_attending', created_at)
+- [ ] Add "Interested" / "Attending" buttons on event cards
+- [ ] Show attendance count on event cards
+- [ ] Sort event lists by attendance count (most popular first)
+- [ ] Add "Events I'm Attending" filter in Calendar
+- [ ] Show attendance status on event detail screen
+- [ ] Display attendee avatars on event cards (top 3)
 
-## Expanded Dance Styles & History
-- [ ] Research and list all major Latin/partner dance styles
-- [ ] Update shared/constants.ts with full dance style list
-- [ ] Update shared/types.ts DanceEvent type to support new styles
-- [ ] Update drizzle schema eventType enum to include new styles
-- [ ] Update backend API to support 1-month historical search (lookback)
-- [ ] Update Calendar screen filters with expanded dance styles
-- [ ] Update Discover screen filters with expanded dance styles
-- [ ] Update Preferences screen with all dance style options
-- [ ] Add "Show Past Events" toggle to Calendar and Discover
-- [ ] Update seed data with events for all new dance styles
-- [ ] Update filter-chips component to handle scrollable list of styles
-- [ ] Run all unit tests after changes
-- [ ] Update documentation with new dance styles
-- [ ] Add in-app interactive map with event pins (expo-maps)
-- [ ] Fix "Open in Maps" web fallback to use Google Maps URL
-- [ ] Create FavoritesContext provider with AsyncStorage persistence
-- [ ] Add "All Events" / "My Calendar" toggle on Calendar screen
-- [ ] Add save/bookmark button on EventCard component
-- [ ] Add save button on Discover screen event cards
-- [ ] Add save button on Event Detail screen
-- [ ] Filter calendar to show only saved events in "My Calendar" mode
+## Admin Dashboard & User Management
+- [ ] Create admin login (email-based, hardcoded admin emails in env var)
+- [ ] Build admin dashboard screen (protected route)
+- [ ] Show user statistics (total users, events created, flagged events)
+- [ ] Display list of flagged/inappropriate events
+- [ ] Add approve/hide/delete buttons for flagged events
+- [ ] Show user list with creation date and event count
+- [ ] Add user suspension/ban functionality
+- [ ] View user's submitted events and attendance history
+- [ ] Export user data for analytics
+
+## UI/UX Improvements
+- [ ] Add pull-to-refresh to Calendar screen (RefreshControl)
+- [ ] Add pull-to-refresh to Discover screen (RefreshControl)
+- [ ] Add pull-to-refresh to Map screen (RefreshControl)
+- [ ] Show loading spinner while refreshing
+- [ ] Add "Last updated" timestamp to screens
+- [ ] Show user avatar in top-right corner when logged in
+- [ ] Add notification badge for new events matching preferences
+- [ ] Improve event card layout to show attendance count and user avatar
+
+## Database Schema Updates
+- [ ] Add users table (id, email, name, avatar_url, created_at, is_admin)
+- [ ] Add user_events table (id, user_id, title, description, date, time, location, lat, lng, dance_style, image_url, is_shared, moderation_status, created_at, updated_at)
+- [ ] Add user_event_attendance table (user_id, event_id, status, created_at)
+- [ ] Add user_blocks table (blocker_id, blocked_user_id, created_at)
+- [ ] Add moderation_logs table (id, event_id, reason, flagged_at, resolved_at, admin_action)
+- [ ] Create indexes on user_id, event_id, created_at for performance
+
+## API Routes (New/Updated)
+- [ ] POST /auth/login (Gmail OAuth callback)
+- [ ] POST /auth/logout
+- [ ] GET /auth/me (get current user)
+- [ ] POST /user/events (create user event)
+- [ ] GET /user/events (list user's events)
+- [ ] PATCH /user/events/:id (update user event)
+- [ ] DELETE /user/events/:id (delete user event)
+- [ ] POST /user/attendance (mark attendance)
+- [ ] GET /user/attendance (get user's attendance)
+- [ ] POST /user/blocks (block user)
+- [ ] DELETE /user/blocks/:id (unblock user)
+- [ ] GET /admin/users (list all users - admin only)
+- [ ] GET /admin/events (list flagged events - admin only)
+- [ ] PATCH /admin/events/:id (approve/hide event - admin only)
+- [ ] POST /admin/users/:id/suspend (suspend user - admin only)
+
+## Testing
+- [ ] Write tests for user authentication flow
+- [ ] Write tests for event submission and moderation
+- [ ] Write tests for attendance tracking
+- [ ] Write tests for user blocking
+- [ ] Write tests for admin endpoints
+- [ ] Test profanity filter with various inputs
+- [ ] Run full test suite after each feature
+
+## Documentation Updates
+- [ ] Update docs/README.md with user auth flow
+- [ ] Update docs/architecture.md with new database schema
+- [ ] Update docs/api.md with new API routes
+- [ ] Create docs/user-events.md for event submission guide
+- [ ] Create docs/admin-guide.md for admin dashboard usage
+- [ ] Update docs/security.md with user data privacy policies
+- [ ] Document moderation policies and content guidelines
+
+## Deployment & Configuration
+- [ ] Add GMAIL_OAUTH_CLIENT_ID and GMAIL_OAUTH_CLIENT_SECRET env vars
+- [ ] Add ADMIN_EMAILS env var (comma-separated list)
+- [ ] Add PROFANITY_FILTER_WORDS env var or load from file
+- [ ] Update deployment guide with new env vars
+- [ ] Test Gmail OAuth in production environment
+
+## Final Delivery
+- [ ] Run all 122+ tests (ensure no regressions)
+- [ ] Verify offline functionality with new features
+- [ ] Test user auth flow end-to-end
+- [ ] Test event submission and moderation
+- [ ] Test admin dashboard
+- [ ] Update all documentation
+- [ ] Save final checkpoint
+- [ ] Prepare delivery summary
+
+## PRIORITY ORDER: 5→6→1→2→4→3
+
+## Phase 1: Pull-to-Refresh (CURRENT)
+- [x] Add RefreshControl to Calendar screen
+- [x] Add RefreshControl to Discover screen
+- [x] Add RefreshControl to Map screen
+- [x] Implement refresh handler that re-fetches events from API
+- [x] Show loading state during refresh
+- [ ] Test pull-to-refresh on iOS and Android
+
+## Phase 2: Admin Dashboard
+- [ ] Create admin routes and screens (protected by is_admin flag)
+- [ ] Build admin home screen with stats (total users, events, flagged content)
+- [ ] Create user management screen (view all users, block/suspend)
+- [ ] Create moderation dashboard (view flagged events, approve/hide/delete)
+- [ ] Add admin-only Settings tab or navigation
+- [ ] Implement admin auth check in backend routers
+
+## Phase 3: Gmail OAuth Authentication
+- [ ] Set up Gmail OAuth configuration
+- [ ] Create login screen with "Sign in with Google" button
+- [ ] Implement Gmail OAuth flow using expo-auth-session
+- [ ] Store auth token securely in device keychain
+- [ ] Create user context provider for global auth state
+- [ ] Add logout functionality
+- [ ] Implement protected routes (redirect to login if not authenticated)
+- [ ] Create user profile screen
+
+## Phase 4: Event Submission & Sharing
+- [ ] Create event submission form screen
+- [ ] Add photo upload functionality
+- [ ] Implement "Share with Community" toggle
+- [ ] Create user-generated events tab in Discover
+- [ ] Allow users to edit their own events
+- [ ] Allow users to delete their own events
+- [ ] Show event creator info on event cards
+
+## Phase 5: Attendance Tracking
+- [ ] Add "Interested" button to event cards
+- [ ] Add "Attending" button to event cards
+- [ ] Add "Not Attending" button to event cards
+- [ ] Store attendance status in database
+- [ ] Sort event lists by attendance count (most attended first)
+- [ ] Show attendance count on event cards
+- [ ] Create "My Attending" filter in Discover
+
+## Phase 6: Moderation System
+- [ ] Integrate profanity filter into event submission
+- [ ] Auto-flag events with inappropriate language
+- [ ] Create moderation status field (pending/approved/hidden)
+- [ ] Add hide toggle for events from blocked users
+- [ ] Implement user block feature
+- [ ] Log all moderation actions
+- [ ] Run full test suite (122+ tests)
+- [ ] Save checkpoint and deliver
 
 
-## Resilience & Offline Support
-- [x] Conduct comprehensive resilience audit of all pages and functions
-- [x] Document all pages, functions, and edge cases (docs/resilience-audit.md)
-- [x] Implement local event caching with AsyncStorage (lib/cache.ts)
-- [x] Add error boundaries to all screens (components/error-boundary.tsx)
-- [x] Create network state detection (lib/network-context.tsx)
-- [x] Add offline indicator (components/offline-indicator.tsx)
-- [x] Write unit tests for cache utilities (17 tests passed)
-- [x] Write unit tests for network context (5 tests passed)
-- [ ] Integrate caching into Calendar and Discover screens
-- [ ] Implement retry logic for failed API calls
-- [ ] Test all failure scenarios (no network, server down, DB crash)
-- [ ] Update resilience documentation
 
-
-## Rebranding to Cal🔥Caliente
-- [x] Generate new logo: dancing couple with woman's fire costume
-- [x] Update app.config.ts with new app name
-- [x] Copy logo to all asset locations
-- [x] Run tests and verify branding (122 tests passing)
+## Phase 1.5: Mapping Improvements (Nominatim + OpenStreetMap)
+- [x] Add city coordinates constant for all major Japan cities
+- [x] Implement Nominatim geocoding utility (address → lat/lng) in lib/geocoding.ts
+- [x] Update map screen to jump to selected city when filter changes
+- [x] Replace hardcoded Tokyo center with dynamic city selection
+- [x] Add Nominatim caching to avoid repeated geocoding
+- [ ] Test map centering on city selection
