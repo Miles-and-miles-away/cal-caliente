@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  RefreshControl,
   Text,
   TextInput,
   View,
@@ -29,10 +28,9 @@ export default function DiscoverScreen() {
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState<string>("upcoming");
-  const [refreshing, setRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // CRITICAL FIX: Memoize query parameters so they don't change on every render
-  // This prevents infinite refetch loops caused by unstable date strings
+  // Memoize query parameters so they don't change on every render
   const queryParams = useMemo(() => {
     const now = new Date();
     let startDate: string | undefined;
@@ -50,7 +48,6 @@ export default function DiscoverScreen() {
       startDate = new Date(now.getTime() - API_EVENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
       endDate = now.toISOString();
     }
-    // "all" → no date filters
 
     return {
       danceStyle: danceFilter === "all" ? undefined : danceFilter,
@@ -67,11 +64,11 @@ export default function DiscoverScreen() {
   const eventsList = (events ?? []) as any[];
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
+    setIsRefreshing(true);
     try {
       await refetch();
     } finally {
-      setRefreshing(false);
+      setIsRefreshing(false);
     }
   }, [refetch]);
 
@@ -87,8 +84,24 @@ export default function DiscoverScreen() {
   const ListHeaderComponent = useCallback(
     () => (
       <View>
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
           <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Discover</Text>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={isRefreshing || isLoading}
+            style={({ pressed }) => [
+              {
+                padding: 8,
+                opacity: pressed ? 0.6 : isRefreshing || isLoading ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <IconSymbol name="arrow.clockwise" size={20} color={colors.primary} />
+            )}
+          </Pressable>
         </View>
 
         {/* Search bar */}
@@ -178,7 +191,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
     ),
-    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router]
+    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router, isRefreshing, isLoading, handleRefresh]
   );
 
   return (
@@ -203,14 +216,6 @@ export default function DiscoverScreen() {
           </View>
         }
         contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
       />
     </ScreenContainer>
   );

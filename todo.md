@@ -116,3 +116,11 @@
 - [x] Write comprehensive pull-to-refresh v2 tests (17 tests)
 - [x] Verify all tests pass (138 passing, 1 skipped)
 - [x] Document root cause analysis and solution approach
+
+
+## Bug Fixes (Current Sprint)
+- [x] Replace pull-to-refresh with manual refresh button (easier to test in container)
+- [x] Fix My Calendar to exclude past events from count and display
+- [x] Write tests for refresh button functionality (17 tests)
+- [x] Write tests for past event filtering logic (17 tests)
+- [x] Verify all tests pass (155 passing, 1 skipped)

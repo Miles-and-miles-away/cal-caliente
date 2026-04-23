@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { EventCard } from "@/components/event-card";
 import { FilterChips } from "@/components/filter-chips";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useFavorites } from "@/lib/favorites-context";
@@ -27,6 +28,12 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function isEventInPast(eventDate: string, now: Date): boolean {
+  const eventTime = new Date(eventDate).getTime();
+  const nowTime = now.getTime();
+  return eventTime < nowTime;
+}
+
 export default function CalendarScreen() {
   const colors = useColors();
   const { isFavorite, count: favCount } = useFavorites();
@@ -36,12 +43,12 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [calMode, setCalMode] = useState<CalendarMode>("all");
-  const [refreshing, setRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
   const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
 
-  // CRITICAL FIX: Memoize query parameters to prevent unnecessary refetches
+  // Memoize query parameters to prevent unnecessary refetches
   const queryParams = useMemo(
     () => ({
       danceStyle: danceFilter === "all" ? undefined : danceFilter,
@@ -57,10 +64,17 @@ export default function CalendarScreen() {
   const eventsList = useMemo(() => {
     const raw = (events ?? []) as any[];
     if (calMode === "my") {
-      return raw.filter((ev: any) => isFavorite(ev.id));
+      // Filter to only show upcoming favorites (not past events)
+      return raw.filter((ev: any) => isFavorite(ev.id) && !isEventInPast(ev.startAt, today));
     }
     return raw;
-  }, [events, calMode, isFavorite]);
+  }, [events, calMode, isFavorite, today]);
+
+  // Count only upcoming favorites for the badge
+  const upcomingFavCount = useMemo(() => {
+    const raw = (events ?? []) as any[];
+    return raw.filter((ev: any) => isFavorite(ev.id) && !isEventInPast(ev.startAt, today)).length;
+  }, [events, isFavorite, today]);
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -103,11 +117,11 @@ export default function CalendarScreen() {
   };
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
+    setIsRefreshing(true);
     try {
       await refetch();
     } finally {
-      setRefreshing(false);
+      setIsRefreshing(false);
     }
   }, [refetch]);
 
@@ -118,22 +132,33 @@ export default function CalendarScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-      >
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* Header with refresh button */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
+          <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Calendar</Text>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={isRefreshing || isLoading}
+            style={({ pressed }) => [
+              {
+                padding: 8,
+                opacity: pressed ? 0.6 : isRefreshing || isLoading ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <IconSymbol name="arrow.clockwise" size={20} color={colors.primary} />
+            )}
+          </Pressable>
+        </View>
+
         {/* All / My Cal Toggle */}
         <View style={{ flexDirection: "row", marginHorizontal: 16, marginTop: 8, marginBottom: 4, borderRadius: 10, backgroundColor: colors.surface, padding: 3 }}>
           {(["all", "my"] as CalendarMode[]).map((mode) => {
             const active = calMode === mode;
-            const label = mode === "all" ? "All Events" : `My Calendar${favCount > 0 ? ` (${favCount})` : ""}`;
+            const label = mode === "all" ? "All Events" : `My Calendar${upcomingFavCount > 0 ? ` (${upcomingFavCount})` : ""}`;
             return (
               <Pressable
                 key={mode}
@@ -278,7 +303,7 @@ export default function CalendarScreen() {
             </Text>
             <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
               {calMode === "my"
-                ? "No saved events on this date.\nBrowse All Events and tap the bookmark to save!"
+                ? "No upcoming saved events on this date.\nBrowse All Events and tap the bookmark to save!"
                 : "No events on this date.\nTry selecting another day!"}
             </Text>
           </View>
