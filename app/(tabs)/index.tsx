@@ -273,13 +273,18 @@ export default function CalendarScreen() {
             )}
           </View>
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+        scrollEnabled={true}
+        alwaysBounceVertical={Platform.OS === "ios"}
+        bounces={Platform.OS === "ios"}
+        progressViewOffset={80}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
+            progressViewOffset={80}
           />
         }
       />

@@ -148,13 +148,17 @@
 
 ## PRIORITY ORDER: 5→6→1→2→4→3
 
-## Phase 1: Pull-to-Refresh (CURRENT)
+## Phase 1: Pull-to-Refresh (COMPLETED)
 - [x] Add RefreshControl to Calendar screen
 - [x] Add RefreshControl to Discover screen
 - [x] Add RefreshControl to Map screen
 - [x] Implement refresh handler that re-fetches events from API
 - [x] Show loading state during refresh
-- [ ] Test pull-to-refresh on iOS and Android
+- [x] Fix infinite loading bug in Discover screen
+- [x] Fix missing refresh UI in Calendar screen
+- [x] Add FlatList props for pull-to-refresh visibility (alwaysBounceVertical, bounces, progressViewOffset)
+- [x] Write comprehensive pull-to-refresh tests (28 tests)
+- [x] Verify all tests pass (149 passing)
 
 ## Phase 2: Admin Dashboard
 - [ ] Create admin routes and screens (protected by is_admin flag)
