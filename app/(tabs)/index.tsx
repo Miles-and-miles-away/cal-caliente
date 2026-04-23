@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Pressable, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { EventCard } from "@/components/event-card";
@@ -36,26 +36,16 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [calMode, setCalMode] = useState<CalendarMode>("all");
-  const [refreshing, setRefreshing] = useState(false);
 
   const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
   const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
 
-  const { data: events, isLoading, refetch } = trpc.events.list.useQuery({
+  const { data: events, isLoading } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
     startDate: monthStart.toISOString(),
     endDate: monthEnd.toISOString(),
     limit: 200,
   });
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const eventsList = useMemo(() => {
     const raw = (events ?? []) as any[];
@@ -273,20 +263,7 @@ export default function CalendarScreen() {
             )}
           </View>
         }
-        contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
-        scrollEnabled={true}
-        alwaysBounceVertical={Platform.OS === "ios"}
-        bounces={Platform.OS === "ios"}
-        progressViewOffset={80}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressViewOffset={80}
-          />
-        }
+        contentContainerStyle={{ paddingBottom: 100 }}
       />
     </ScreenContainer>
   );

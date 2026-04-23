@@ -181,20 +181,6 @@ export const DEFAULT_MAP_REGION = {
   longitudeDelta: 0.15,
 } as const;
 
-export const CITY_COORDINATES: Readonly<Record<string, { lat: number; lng: number }>> = {
-  Tokyo: { lat: 35.6762, lng: 139.6503 },
-  Osaka: { lat: 34.6937, lng: 135.5023 },
-  Nagoya: { lat: 35.1815, lng: 136.9066 },
-  Fukuoka: { lat: 33.5904, lng: 130.4017 },
-  Yokohama: { lat: 35.4437, lng: 139.6380 },
-  Kobe: { lat: 34.6901, lng: 135.1955 },
-  Sapporo: { lat: 43.0642, lng: 141.3469 },
-  Kyoto: { lat: 35.0116, lng: 135.7681 },
-  Sendai: { lat: 38.2682, lng: 140.8694 },
-  Hiroshima: { lat: 34.3853, lng: 132.4553 },
-  Okinawa: { lat: 26.3351, lng: 127.7842 },
-} as const;
-
 // ─── Preferences Defaults ────────────────────────────────────────────────────
 
 export const DEFAULT_PREFERENCES = {
@@ -251,45 +237,3 @@ export const MAX_SOURCE_NAME_LENGTH = 255;
 
 export const APP_VERSION = "1.0.0";
 export const APP_REGION = "Japan";
-
-// ─── Content Moderation ──────────────────────────────────────────────────────
-
-export const PROFANITY_FILTER_WORDS = [
-  "damn", "hell", "crap", "ass", "bastard", "bitch", "shit", "fuck",
-  "asshole", "dickhead", "idiot", "stupid", "dumb", "retard",
-  "nigger", "faggot", "whore", "slut", "cunt", "prick",
-] as const;
-
-export const MODERATION_REASONS = [
-  "profanity",
-  "spam",
-  "harassment",
-  "misinformation",
-  "inappropriate_image",
-  "duplicate",
-  "wrong_category",
-  "other",
-] as const;
-
-export const MODERATION_REASON_LABELS: Readonly<Record<string, string>> = {
-  profanity: "Contains profanity or rude language",
-  spam: "Spam or promotional content",
-  harassment: "Harassment or hate speech",
-  misinformation: "Misinformation or false information",
-  inappropriate_image: "Inappropriate image",
-  duplicate: "Duplicate event",
-  wrong_category: "Wrong category or misleading",
-  other: "Other reason",
-} as const;
-
-export const ATTENDANCE_STATUS_OPTIONS = [
-  { label: "Interested", value: "interested" },
-  { label: "Attending", value: "attending" },
-  { label: "Not Attending", value: "not_attending" },
-] as const;
-
-// ─── Admin Configuration ─────────────────────────────────────────────────────
-
-export const ADMIN_EMAILS_ENV_VAR = "ADMIN_EMAILS";
-export const PROFANITY_FILTER_ENABLED = true;
-export const AUTO_MODERATE_ENABLED = true;
