@@ -4,7 +4,6 @@ import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { EventCard } from "@/components/event-card";
 import { FilterChips } from "@/components/filter-chips";
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useFavorites } from "@/lib/favorites-context";
@@ -43,7 +42,6 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [calMode, setCalMode] = useState<CalendarMode>("all");
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
   const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
@@ -59,7 +57,7 @@ export default function CalendarScreen() {
     [danceFilter, monthStart, monthEnd]
   );
 
-  const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
+  const { data: events, isLoading } = trpc.events.list.useQuery(queryParams);
 
   const eventsList = useMemo(() => {
     const raw = (events ?? []) as any[];
@@ -116,15 +114,6 @@ export default function CalendarScreen() {
     }
   };
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [refetch]);
-
   const monthLabel = new Date(currentYear, currentMonth).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -133,25 +122,9 @@ export default function CalendarScreen() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Header with refresh button */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
+        {/* Header */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
           <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Calendar</Text>
-          <Pressable
-            onPress={handleRefresh}
-            disabled={isRefreshing || isLoading}
-            style={({ pressed }) => [
-              {
-                padding: 8,
-                opacity: pressed ? 0.6 : isRefreshing || isLoading ? 0.5 : 1,
-              },
-            ]}
-          >
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <IconSymbol name="arrow.clockwise" size={20} color={colors.primary} />
-            )}
-          </Pressable>
         </View>
 
         {/* All / My Cal Toggle */}

@@ -84,24 +84,8 @@ export default function DiscoverScreen() {
   const ListHeaderComponent = useCallback(
     () => (
       <View>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
           <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Discover</Text>
-          <Pressable
-            onPress={handleRefresh}
-            disabled={isRefreshing || isLoading}
-            style={({ pressed }) => [
-              {
-                padding: 8,
-                opacity: pressed ? 0.6 : isRefreshing || isLoading ? 0.5 : 1,
-              },
-            ]}
-          >
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <IconSymbol name="arrow.clockwise" size={20} color={colors.primary} />
-            )}
-          </Pressable>
         </View>
 
         {/* Search bar */}
@@ -183,15 +167,44 @@ export default function DiscoverScreen() {
         </Pressable>
 
         {/* Results count */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 8 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
             {eventsList.length} event{eventsList.length !== 1 ? "s" : ""} found
-            {dateRange === "past_month" ? " (past month)" : ""}
           </Text>
         </View>
       </View>
     ),
-    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router, isRefreshing, isLoading, handleRefresh]
+    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router]
+  );
+
+  const ListFooterComponent = useCallback(
+    () => (
+      <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
+        <Pressable
+          onPress={handleRefresh}
+          disabled={isRefreshing || isLoading}
+          style={({ pressed }) => [
+            {
+              backgroundColor: isRefreshing || isLoading ? "#D81B60" : "#E91E63",
+              borderRadius: 8,
+              paddingVertical: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
+              Refresh
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    ),
+    [isRefreshing, isLoading, handleRefresh]
   );
 
   return (
@@ -201,6 +214,7 @@ export default function DiscoverScreen() {
         keyExtractor={(item: any) => item.id.toString()}
         renderItem={renderEvent}
         ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={ListFooterComponent}
         ListEmptyComponent={
           <View style={{ alignItems: "center", paddingVertical: 32 }}>
             {isLoading ? (
@@ -215,7 +229,7 @@ export default function DiscoverScreen() {
             )}
           </View>
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
       />
     </ScreenContainer>
   );

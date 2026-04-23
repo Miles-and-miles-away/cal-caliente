@@ -124,3 +124,7 @@
 - [x] Write tests for refresh button functionality (17 tests)
 - [x] Write tests for past event filtering logic (17 tests)
 - [x] Verify all tests pass (155 passing, 1 skipped)
+- [x] Remove date header additions from Discover screen (e.g., "- last week")
+- [x] Remove refresh button from Calendar screen
+- [x] Add full-width red refresh button at bottom of Discover only
+- [x] Button shows white "Refresh" text and spinning icon while loading
