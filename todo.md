@@ -104,3 +104,15 @@
 - [x] Update app.config.ts with new app name
 - [x] Copy logo to all asset locations
 - [x] Run tests and verify branding (122 tests passing)
+
+
+## Pull-to-Refresh Implementation (REDESIGNED - v2)
+- [x] Analyze root cause of initial pull-to-refresh failure
+- [x] Identify: Unstable query parameters causing infinite refetch loops
+- [x] Identify: FlatList with large headers preventing RefreshControl visibility
+- [x] Redesign Discover: Memoize query parameters with useMemo
+- [x] Redesign Calendar: Switch from FlatList to ScrollView for better pull-to-refresh
+- [x] Implement proper refresh state management with try-finally
+- [x] Write comprehensive pull-to-refresh v2 tests (17 tests)
+- [x] Verify all tests pass (138 passing, 1 skipped)
+- [x] Document root cause analysis and solution approach
