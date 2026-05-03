@@ -1,0 +1,108 @@
+BEGIN:VCALENDAR
+PRODID:-//Test//Test//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+X-WR-TIMEZONE:Asia/Tokyo
+BEGIN:VTIMEZONE
+TZID:Asia/Tokyo
+X-LIC-LOCATION:Asia/Tokyo
+BEGIN:STANDARD
+TZOFFSETFROM:+0900
+TZOFFSETTO:+0900
+TZNAME:JST
+DTSTART:19700101T000000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:single-event-1@test
+SUMMARY:Tokyo Salsa Social Night
+DESCRIPTION:Weekly salsa social with live DJ\nDoors 19:00\, social 20:00-23:00\nEntry ¥2000 with one drink
+LOCATION:Club Salud!\, 6-60-9 Higashi-Nippori\, Arakawa-ku\, Tokyo 116-0014\, 日本
+DTSTART;TZID=Asia/Tokyo:20260615T200000
+DTEND;TZID=Asia/Tokyo:20260615T230000
+URL:https://example.com/events/tokyo-salsa-social
+END:VEVENT
+BEGIN:VEVENT
+UID:recurring-event-1@test
+SUMMARY:〜火曜日〜Bachata Sensual Class
+DESCRIPTION:火曜日のバチャータレッスン\n初心者歓迎\n料金: ¥1500
+LOCATION:日暮里サルー！\, 東京都荒川区東日暮里6-60-9
+DTSTART;TZID=Asia/Tokyo:20260601T193000
+DTEND;TZID=Asia/Tokyo:20260601T203000
+RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=4
+END:VEVENT
+BEGIN:VEVENT
+UID:past-event-1@test
+SUMMARY:Last Year's Festival
+DESCRIPTION:Already happened\, should be filtered out
+LOCATION:Tokyo
+DTSTART;TZID=Asia/Tokyo:20251201T180000
+DTEND;TZID=Asia/Tokyo:20251201T220000
+END:VEVENT
+BEGIN:VEVENT
+UID:far-future-event-1@test
+SUMMARY:Festival Way Out There
+DESCRIPTION:Beyond our 60-day window\, should also be filtered
+LOCATION:Osaka\, Japan
+DTSTART;TZID=Asia/Tokyo:20270101T190000
+DTEND;TZID=Asia/Tokyo:20270101T230000
+END:VEVENT
+BEGIN:VEVENT
+UID:javascript-url-event@test
+SUMMARY:Event with unsafe URL
+DESCRIPTION:URL property is javascript: scheme — should be dropped from sourceUrl
+LOCATION:Yokohama\, Kanagawa
+DTSTART;TZID=Asia/Tokyo:20260620T190000
+DTEND;TZID=Asia/Tokyo:20260620T210000
+URL:javascript:alert(1)
+END:VEVENT
+BEGIN:VEVENT
+UID:no-style-event@test
+SUMMARY:Generic Latin Night
+DESCRIPTION:Various Latin music\, no specific style mentioned
+LOCATION:Fukuoka
+DTSTART;TZID=Asia/Tokyo:20260625T200000
+DTEND;TZID=Asia/Tokyo:20260625T230000
+END:VEVENT
+BEGIN:VEVENT
+UID:title-vs-description@test
+SUMMARY:Salsa Night
+DESCRIPTION:Bachata bachata bachata everywhere in the description but title says salsa
+LOCATION:Tokyo
+DTSTART;TZID=Asia/Tokyo:20260628T200000
+DTEND;TZID=Asia/Tokyo:20260628T230000
+END:VEVENT
+BEGIN:VEVENT
+UID:cancelled-event@test
+SUMMARY:Cancelled Salsa Social
+DESCRIPTION:This event was cancelled and should be skipped entirely
+LOCATION:Tokyo
+DTSTART;TZID=Asia/Tokyo:20260622T200000
+DTEND;TZID=Asia/Tokyo:20260622T230000
+STATUS:CANCELLED
+END:VEVENT
+BEGIN:VEVENT
+UID:long-summary@test
+SUMMARY:Salsa night with an absurdly long title that goes on and on and exceeds the database column limit of 500 characters because some out-of-spec feeds put entire descriptions in the summary field — for example here we go padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding padding the end
+DESCRIPTION:Long-summary stress test
+LOCATION:Tokyo
+DTSTART;TZID=Asia/Tokyo:20260623T200000
+DTEND;TZID=Asia/Tokyo:20260623T230000
+END:VEVENT
+BEGIN:VEVENT
+UID:all-day-event@test
+SUMMARY:Tokyo Salsa Festival
+DESCRIPTION:All-day VALUE=DATE event — should be skipped\, no time means no useful start
+LOCATION:Tokyo
+DTSTART;VALUE=DATE:20260624
+DTEND;VALUE=DATE:20260625
+END:VEVENT
+BEGIN:VEVENT
+UID:event-type-workshop@test
+SUMMARY:Bachata Sensual Workshop
+DESCRIPTION:Workshop for intermediate dancers
+LOCATION:Tokyo
+DTSTART;TZID=Asia/Tokyo:20260626T140000
+DTEND;TZID=Asia/Tokyo:20260626T160000
+END:VEVENT
+END:VCALENDAR

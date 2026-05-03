@@ -62,6 +62,16 @@ async function seedDatabase() {
       // and surface 2-3 major festivals not in SalsaVida. Cross-source dedup
       // handles overlap with SalsaVida via canonicalKey.
       { name: "LatinDanceCalendar Tokyo", url: "https://latindancecalendar.com/events/location/tokyo-japan/", sourceType: "html", region: "japan" },
+      // Club Salud Nippori publishes 4 public Google Calendar feeds — the most
+      // reliable Tokyo source. Deterministic iCal parsing, no LLM cost.
+      { name: "Club Salud — Schedule", url: "https://calendar.google.com/calendar/ical/nippori.salud@gmail.com/public/basic.ics", sourceType: "rss", region: "japan" },
+      { name: "Club Salud — Special Events", url: "https://calendar.google.com/calendar/ical/sr0mc5bme09l3b8eaq9nloqoug@group.calendar.google.com/public/basic.ics", sourceType: "rss", region: "japan" },
+      { name: "Club Salud — External", url: "https://calendar.google.com/calendar/ical/52gpao3m28t2oecbub1rhi685o@group.calendar.google.com/public/basic.ics", sourceType: "rss", region: "japan" },
+      { name: "Club Salud — DJ Nights", url: "https://calendar.google.com/calendar/ical/q4avf89fl1sgjkdfj505o7ecvk@group.calendar.google.com/public/basic.ics", sourceType: "rss", region: "japan" },
+      // Meetup groups expose iCal at /events/ical for any public group.
+      { name: "Meetup — Tokyo Salsa-Bachata Lessons", url: "https://www.meetup.com/tokyo-salsa-lessons/events/ical", sourceType: "rss", region: "japan" },
+      { name: "Meetup — La Bachata Tokyo", url: "https://www.meetup.com/la_bachata_tokyo/events/ical", sourceType: "rss", region: "japan" },
+      { name: "Meetup — Taps N' Turns Tokyo", url: "https://www.meetup.com/tnt-tokyo-salsa-bachata-other-dance-parties/events/ical", sourceType: "rss", region: "japan" },
     ];
 
     for (const src of sources) {
