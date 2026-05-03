@@ -13,7 +13,7 @@
  */
 
 import { lookup as dnsLookup } from "node:dns/promises";
-import { extractEventsFromHtml } from "./_core/event-extractor";
+import { extractEventDetailFromHtml, extractEventsFromHtml } from "./_core/event-extractor";
 import {
   getActiveSources,
   addScrapeLog,
@@ -203,7 +203,13 @@ export class HtmlScraperAdapter implements ScraperAdapter {
         now: new Date(),
       });
       console.log(`[Scraper:HTML] Extracted ${events.length} events from ${sanitized}`);
-      return events;
+
+      // Detail-page enrichment: for events that came back sparse (missing
+      // address or coords) and link to a same-domain detail page, fetch the
+      // detail page and run a second LLM pass to fill in the gaps. Capped to
+      // protect against runaway LLM cost on first scrape of a busy source.
+      const enriched = await enrichEventsBatch(events, sanitized);
+      return enriched;
     } catch (error: any) {
       if (error.name === "AbortError") {
         console.warn(`[Scraper:HTML] Timeout fetching ${sanitized}`);
@@ -213,6 +219,108 @@ export class HtmlScraperAdapter implements ScraperAdapter {
       return [];
     }
   }
+}
+
+// ─── Detail-page enrichment ─────────────────────────────────────────────────
+
+const MAX_ENRICHMENTS_PER_SCRAPE = 50;
+const ENRICHMENT_CONCURRENCY = 3;
+
+function needsEnrichment(ev: ScrapedEvent): boolean {
+  // Listing pages typically give title/date/venue name. We need address +
+  // coordinates for the map to be useful — if both are missing, the detail
+  // page is worth a fetch.
+  const hasAddress = !!ev.venueAddress;
+  const hasCoords = ev.latitude != null && ev.longitude != null;
+  return !hasAddress || !hasCoords;
+}
+
+function isSameDomain(detailUrl: string, listingUrl: string): boolean {
+  try {
+    return new URL(detailUrl).host === new URL(listingUrl).host;
+  } catch {
+    return false;
+  }
+}
+
+async function enrichOneEvent(
+  event: ScrapedEvent,
+  listingUrl: string,
+): Promise<ScrapedEvent> {
+  if (!event.sourceUrl || !isSameDomain(event.sourceUrl, listingUrl)) return event;
+  if (!needsEnrichment(event)) return event;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
+    const res = await safeFetch(event.sourceUrl, {
+      headers: { "User-Agent": SCRAPER_USER_AGENT },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return event;
+    const html = (await res.text()).slice(0, SCRAPER_MAX_HTML_CHARS);
+
+    const enrichment = await extractEventDetailFromHtml({
+      html,
+      pageUrl: event.sourceUrl,
+      baseEvent: event,
+    });
+
+    // Merge: enrichment fields win when present, base event fields are kept
+    // when enrichment returned null/undefined for them.
+    const merged: ScrapedEvent = { ...event };
+    for (const [key, value] of Object.entries(enrichment)) {
+      if (value !== null && value !== undefined && value !== "") {
+        (merged as any)[key] = value;
+      }
+    }
+    return merged;
+  } catch (err: any) {
+    console.warn(`[Scraper:HTML] Enrichment failed for ${event.sourceUrl}: ${err.message}`);
+    return event;
+  }
+}
+
+async function enrichEventsBatch(
+  events: ScrapedEvent[],
+  listingUrl: string,
+): Promise<ScrapedEvent[]> {
+  const candidates = events.filter(
+    (ev) =>
+      ev.sourceUrl &&
+      isSameDomain(ev.sourceUrl, listingUrl) &&
+      needsEnrichment(ev),
+  );
+  if (candidates.length === 0) return events;
+
+  // Bound LLM cost per scrape cycle. Subsequent cycles will cover the rest
+  // because dedup-by-canonicalKey lets us merge new fields onto existing rows.
+  const toEnrich = new Set(candidates.slice(0, MAX_ENRICHMENTS_PER_SCRAPE));
+  if (candidates.length > MAX_ENRICHMENTS_PER_SCRAPE) {
+    console.log(
+      `[Scraper:HTML] Capping enrichment at ${MAX_ENRICHMENTS_PER_SCRAPE}/${candidates.length} ` +
+        `for ${listingUrl} — remainder will pick up next cycle.`,
+    );
+  }
+
+  // Tiny worker pool so we don't fire 50 LLM calls in parallel.
+  const queue = events.map((ev, i) => ({ ev, i }));
+  const out: ScrapedEvent[] = new Array(events.length);
+  const workers = Array.from(
+    { length: Math.min(ENRICHMENT_CONCURRENCY, queue.length) },
+    async () => {
+      while (queue.length > 0) {
+        const next = queue.shift();
+        if (!next) break;
+        out[next.i] = toEnrich.has(next.ev)
+          ? await enrichOneEvent(next.ev, listingUrl)
+          : next.ev;
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
 }
 
 // ─── Facebook Adapter (stub — requires Graph API token) ──────────────────────

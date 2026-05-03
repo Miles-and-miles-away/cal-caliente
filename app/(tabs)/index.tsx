@@ -44,6 +44,10 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [calMode, setCalMode] = useState<CalendarMode>("all");
+  // "Show past events" toggle for My Calendar mode. Default off — most users
+  // want to see what's coming up, not what they missed. When on, surfaces
+  // saved events that have already happened (useful for "what did I go to?")
+  const [showPastSaved, setShowPastSaved] = useState(false);
 
   const monthStart = useMemo(() => new Date(currentYear, currentMonth, 1), [currentYear, currentMonth]);
   const monthEnd = useMemo(() => new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), [currentYear, currentMonth]);
@@ -75,13 +79,18 @@ export default function CalendarScreen() {
   const eventsList = useMemo(() => {
     const raw = (events ?? []) as any[];
     if (calMode === "my") {
-      // Filter to only show upcoming favorites (not past events)
-      return raw.filter((ev: any) => isFavorite(ev.id) && !isEventInPast(ev.startAt, today));
+      // Saved favorites; include past only when the toggle is on.
+      return raw.filter((ev: any) => {
+        if (!isFavorite(ev.id)) return false;
+        if (showPastSaved) return true;
+        return !isEventInPast(ev.startAt, today);
+      });
     }
     return raw;
-  }, [events, calMode, isFavorite, today]);
+  }, [events, calMode, isFavorite, today, showPastSaved]);
 
-  // Count only upcoming favorites for the badge
+  // Badge count always reflects upcoming favorites — the past toggle is a
+  // viewing aid, not a count change.
   const upcomingFavCount = useMemo(() => {
     const raw = (events ?? []) as any[];
     return raw.filter((ev: any) => isFavorite(ev.id) && !isEventInPast(ev.startAt, today)).length;
@@ -174,6 +183,34 @@ export default function CalendarScreen() {
             );
           })}
         </View>
+
+        {/* "Show past events" toggle — only visible in My Calendar mode */}
+        {calMode === "my" && (
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 20, marginTop: 4, marginBottom: 4 }}>
+            <Pressable
+              onPress={() => setShowPastSaved((v) => !v)}
+              style={({ pressed }) => [{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: showPastSaved ? colors.primary : colors.border,
+                backgroundColor: showPastSaved ? colors.primary + "15" : "transparent",
+                opacity: pressed ? 0.7 : 1,
+              }]}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: showPastSaved }}
+              accessibilityLabel="Show past saved events"
+            >
+              <Text style={{ fontSize: 11, fontWeight: "600", color: showPastSaved ? colors.primary : colors.muted }}>
+                {showPastSaved ? "✓ Showing past" : "Show past events"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Month navigation */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>

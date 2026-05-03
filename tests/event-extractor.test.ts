@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const invokeLLM = vi.fn();
 vi.mock("../server/_core/llm", () => ({ invokeLLM }));
 
-const { extractEventsFromHtml } = await import("../server/_core/event-extractor");
+const { extractEventsFromHtml, extractEventDetailFromHtml } = await import("../server/_core/event-extractor");
 
 const NOW = new Date("2026-05-03T12:00:00+09:00");
 
@@ -174,5 +174,70 @@ describe("extractEventsFromHtml", () => {
     expect(userMessage.content).toContain("https://example.com/japan");
     expect(userMessage.content).toContain("TestSource");
     expect(userMessage.content).toContain(NOW.toISOString());
+  });
+});
+
+describe("extractEventDetailFromHtml", () => {
+  it("returns the validated enrichment fields", async () => {
+    llmReturnsContent(
+      JSON.stringify({
+        venueAddress: "6-60-9 Higashi-Nippori, Arakawa-ku, Tokyo 116-0014",
+        latitude: 35.7281,
+        longitude: 139.7706,
+        nearestStation: "Nippori",
+        price: "¥1,500-2,000",
+        organizer: "Salud Nippori",
+        description: "Latin bar with regular salsa lessons.",
+      }),
+    );
+
+    const result = await extractEventDetailFromHtml({
+      html: "<html>...</html>",
+      pageUrl: "https://example.com/event/foo",
+      baseEvent: {
+        title: "Latin Bar Salud Nippori",
+        startAt: "2026-05-10T19:00:00+09:00",
+      },
+    });
+
+    expect(result.venueAddress).toContain("Nippori");
+    expect(result.latitude).toBe(35.7281);
+    expect(result.longitude).toBe(139.7706);
+  });
+
+  it("returns {} when the LLM produces malformed JSON", async () => {
+    llmReturnsContent("not json");
+    const result = await extractEventDetailFromHtml({
+      html: "<html/>",
+      pageUrl: "https://example.com/event/foo",
+      baseEvent: { title: "x", startAt: "2026-06-01T00:00:00+09:00" },
+    });
+    expect(result).toEqual({});
+  });
+
+  it("rejects out-of-range coordinates via Zod (lat > 90)", async () => {
+    llmReturnsContent(JSON.stringify({ latitude: 91, longitude: 139 }));
+    const result = await extractEventDetailFromHtml({
+      html: "<html/>",
+      pageUrl: "https://example.com/event/foo",
+      baseEvent: { title: "x", startAt: "2026-06-01T00:00:00+09:00" },
+    });
+    expect(result).toEqual({});
+  });
+
+  it("includes the page URL and base title in the prompt", async () => {
+    llmReturnsContent("{}");
+    await extractEventDetailFromHtml({
+      html: "<html/>",
+      pageUrl: "https://example.com/event/cool",
+      baseEvent: {
+        title: "My Cool Event",
+        startAt: "2026-06-01T19:00:00+09:00",
+      },
+    });
+    const call = invokeLLM.mock.calls.at(-1)![0];
+    const userMessage = call.messages.find((m: any) => m.role === "user");
+    expect(userMessage.content).toContain("https://example.com/event/cool");
+    expect(userMessage.content).toContain("My Cool Event");
   });
 });

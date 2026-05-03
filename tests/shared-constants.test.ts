@@ -276,8 +276,8 @@ describe("shared/constants", () => {
   });
 
   describe("Scraper configuration", () => {
-    it("should have a 1-hour interval", () => {
-      expect(SCRAPER_INTERVAL_MS).toBe(3_600_000);
+    it("should have a 6-hour interval", () => {
+      expect(SCRAPER_INTERVAL_MS).toBe(6 * 60 * 60 * 1000);
     });
 
     it("should have a positive initial delay", () => {
