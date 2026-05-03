@@ -13,7 +13,7 @@
  */
 
 import { lookup as dnsLookup } from "node:dns/promises";
-import { createHash } from "node:crypto";
+import { extractEventsFromHtml } from "./_core/event-extractor";
 import {
   getActiveSources,
   addScrapeLog,
@@ -171,7 +171,7 @@ export class HtmlScraperAdapter implements ScraperAdapter {
     return sourceType === "html" || sourceType === "custom";
   }
 
-  async scrape(url: string, _sourceName: string): Promise<ScrapedEvent[]> {
+  async scrape(url: string, sourceName: string): Promise<ScrapedEvent[]> {
     const sanitized = sanitizeUrl(url);
     if (!sanitized) {
       console.warn(`[Scraper:HTML] Invalid URL: ${url}`);
@@ -196,12 +196,14 @@ export class HtmlScraperAdapter implements ScraperAdapter {
       const html = await response.text();
       const truncated = html.slice(0, SCRAPER_MAX_HTML_CHARS);
 
-      // TODO: Send truncated HTML to server LLM for event extraction
-      // const events = await llm.extractEvents(truncated, sourceName);
-      // return events;
-
-      console.log(`[Scraper:HTML] Fetched ${truncated.length} chars from ${sanitized} (LLM parsing pending)`);
-      return [];
+      const events = await extractEventsFromHtml({
+        html: truncated,
+        sourceUrl: sanitized,
+        sourceName,
+        now: new Date(),
+      });
+      console.log(`[Scraper:HTML] Extracted ${events.length} events from ${sanitized}`);
+      return events;
     } catch (error: any) {
       if (error.name === "AbortError") {
         console.warn(`[Scraper:HTML] Timeout fetching ${sanitized}`);
@@ -337,18 +339,12 @@ export async function scrapeSource(source: {
 
     for (const ev of scrapedEvents) {
       try {
-        // Synthesize an externalId when the adapter doesn't provide one,
-        // otherwise upsertEvent's null-externalId branch falls through to a
-        // plain insert and creates a duplicate on every scrape cycle.
-        const externalId =
-          ev.externalId ??
-          createHash("sha1")
-            .update(`${source.id}|${ev.title}|${ev.startAt}`)
-            .digest("hex")
-            .slice(0, 32);
+        // Dedup is handled by upsertEvent via canonicalKey (title + start date),
+        // so we don't synthesize an externalId here. externalId stays as the
+        // source's own identifier when the adapter provides one.
         const insertEvent: InsertEvent = {
           sourceId: source.id,
-          externalId,
+          externalId: ev.externalId ?? null,
           title: ev.title,
           description: ev.description ?? null,
           danceStyle: (ev.danceStyle ?? null) as InsertEvent["danceStyle"],

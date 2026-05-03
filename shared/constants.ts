@@ -211,7 +211,10 @@ export const SCRAPER_INITIAL_DELAY_MS = 5_000; // 5 seconds after server start
 export const SCRAPER_FETCH_TIMEOUT_MS = 15_000; // 15 seconds per source fetch
 export const SCRAPER_USER_AGENT =
   "Mozilla/5.0 (compatible; SalsaBachataCalendar/1.0; +https://salsabachatajapan.app)";
-export const SCRAPER_MAX_HTML_CHARS = 30_000;
+// 100k chars (~25k tokens) is a comfortable fit inside Gemini Flash's 1M
+// context. Higher than this and we start spending real money per scrape;
+// lower and we cut off SalsaVida city pages mid-month.
+export const SCRAPER_MAX_HTML_CHARS = 100_000;
 
 // ─── API Limits ──────────────────────────────────────────────────────────────
 
