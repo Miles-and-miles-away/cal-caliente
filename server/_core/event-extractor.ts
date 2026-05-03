@@ -186,5 +186,112 @@ export async function extractEventsFromHtml(input: ExtractInput): Promise<Scrape
   }));
 }
 
+// ─── Detail-page enrichment ─────────────────────────────────────────────────
+//
+// Listing pages give us title, date, venue name. Detail pages add the fields
+// that make the app actually useful: full street address, postal code,
+// recurrence pattern, organizer contact, lat/lng (often parseable from a
+// Google Maps link in the page).
+//
+// Output is a *partial* event — only the fields the detail page reliably
+// surfaces. Caller merges this onto the listing-page result. We don't ask
+// the LLM to repeat title/startAt because those are already trusted from the
+// listing pass.
+
+const enrichmentSchema = z.object({
+  venueName: z.string().max(500).nullable().optional(),
+  venueAddress: z.string().max(2000).nullable().optional(),
+  city: z.string().max(100).nullable().optional(),
+  prefecture: z.string().max(100).nullable().optional(),
+  nearestStation: z.string().max(200).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  price: z.string().max(200).nullable().optional(),
+  organizer: z.string().max(300).nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  imageUrl: z.string().max(2048).nullable().optional(),
+});
+
+const enrichmentResponseJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [],
+  properties: {
+    venueName: { type: ["string", "null"] },
+    venueAddress: { type: ["string", "null"], description: "Full street address including postal code if visible." },
+    city: { type: ["string", "null"] },
+    prefecture: { type: ["string", "null"] },
+    nearestStation: { type: ["string", "null"] },
+    latitude: { type: ["number", "null"], description: "Decimal degrees. Extract from any Google Maps link or coordinate text in the page." },
+    longitude: { type: ["number", "null"] },
+    price: { type: ["string", "null"], description: "Verbatim price text, including currency and any conditions." },
+    organizer: { type: ["string", "null"] },
+    description: { type: ["string", "null"], description: "Plain-text description, ~2-5 sentences. Strip HTML." },
+    imageUrl: { type: ["string", "null"], description: "Absolute URL to a representative event image if shown on the page." },
+  },
+} as const;
+
+export interface EnrichInput {
+  html: string;
+  pageUrl: string;
+  /** Existing event from listing-page extraction, used for context. */
+  baseEvent: ScrapedEvent;
+}
+
+export type EventEnrichment = z.infer<typeof enrichmentSchema>;
+
+function buildEnrichmentPrompt({ html, pageUrl, baseEvent }: EnrichInput): string {
+  return `You extract Latin-dance event details from a single event's detail page.
+Page URL: ${pageUrl}
+Event title (from prior pass): ${baseEvent.title}
+Event start (from prior pass): ${baseEvent.startAt}
+
+Rules:
+- Use the page HTML as the only source of truth.
+- Return null for any field not visible. Do not invent values.
+- For latitude/longitude, look for "@lat,lng" patterns in Google Maps URLs or explicit coordinate text. Return numeric decimal degrees, not strings.
+- For description, strip HTML to plain text and trim to a few useful sentences.
+- For imageUrl, return only absolute URLs (https://…). Skip data: URIs and relative paths.
+
+Page HTML (truncated):
+---
+${html}
+---`;
+}
+
+export async function extractEventDetailFromHtml(input: EnrichInput): Promise<EventEnrichment> {
+  const result = await invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content:
+          "You return strict JSON matching the provided schema. You never invent data not present in the user-provided HTML.",
+      },
+      { role: "user", content: buildEnrichmentPrompt(input) },
+    ],
+    responseFormat: {
+      type: "json_schema",
+      json_schema: { name: "event_enrichment", schema: enrichmentResponseJsonSchema, strict: true },
+    },
+  });
+
+  const messageContent = result.choices?.[0]?.message?.content;
+  if (typeof messageContent !== "string" || messageContent.length === 0) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = parseLlmResponse(messageContent);
+  } catch {
+    return {};
+  }
+
+  const validation = enrichmentSchema.safeParse(parsed);
+  if (!validation.success) {
+    console.warn(`[Extractor] Enrichment failed validation: ${validation.error.message}`);
+    return {};
+  }
+  return validation.data;
+}
+
 // Exported for tests.
-export const __testing = { llmOutputSchema, llmEventSchema };
+export const __testing = { llmOutputSchema, llmEventSchema, enrichmentSchema };

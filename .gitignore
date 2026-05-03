@@ -2,6 +2,9 @@
 
 # dependencies
 node_modules/
+# Project uses pnpm (pnpm-lock.yaml is canonical). Don't track npm's lockfile
+# even if a contributor falls back to `npm install` due to a corepack bug.
+package-lock.json
 
 # Expo
 .expo/

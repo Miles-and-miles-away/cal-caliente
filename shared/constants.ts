@@ -206,7 +206,10 @@ export const WALK_TIME_OPTIONS_MIN = [5, 10, 15, 20, 30] as const;
 
 // ─── Scraper Configuration ───────────────────────────────────────────────────
 
-export const SCRAPER_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// 6 hours. SalsaVida + LatinDanceCalendar listings don't change hourly —
+// dance events get added days/weeks ahead, not minutes. 4 cycles/day is plenty
+// and keeps LLM cost sane (each cycle is ~150k tokens across 7 sources).
+export const SCRAPER_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const SCRAPER_INITIAL_DELAY_MS = 5_000; // 5 seconds after server start
 export const SCRAPER_FETCH_TIMEOUT_MS = 15_000; // 15 seconds per source fetch
 export const SCRAPER_USER_AGENT =
