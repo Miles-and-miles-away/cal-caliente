@@ -7,6 +7,8 @@ import { FilterChips } from "@/components/filter-chips";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useFavorites } from "@/lib/favorites-context";
+import { CACHE_KEYS, CACHE_TTL } from "@/lib/cache";
+import { useCachedQuery } from "@/hooks/use-cached-query";
 import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS } from "@/shared/constants";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -57,7 +59,17 @@ export default function CalendarScreen() {
     [danceFilter, monthStart, monthEnd]
   );
 
-  const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
+  const liveQuery = trpc.events.list.useQuery(queryParams);
+  // Wrap with AsyncStorage cache so the calendar shows last-known-good data
+  // immediately on launch / when offline. Cache is keyed by month + dance
+  // filter so different views don't clobber each other.
+  const cacheKey = `${CACHE_KEYS.eventsByMonth(currentYear, currentMonth)}_${danceFilter}`;
+  const { data: events, isLoading, isCached } = useCachedQuery(
+    liveQuery,
+    cacheKey,
+    CACHE_TTL.events,
+  );
+  const refetch = liveQuery.refetch;
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const eventsList = useMemo(() => {
@@ -263,6 +275,7 @@ export default function CalendarScreen() {
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
             {selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? "s" : ""}
             {calMode === "my" ? " saved" : ""}
+            {isCached ? " · cached" : ""}
           </Text>
         </View>
 
