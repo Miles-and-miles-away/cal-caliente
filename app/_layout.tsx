@@ -61,8 +61,18 @@ export default function RootLayout() {
           queries: {
             // Disable automatic refetching on window focus for mobile
             refetchOnWindowFocus: false,
-            // Retry failed requests once
+            // Mobile networks are flaky — 3 retries with exponential backoff
+            // (1s, 2s, 4s, capped at 30s) gives transient failures a chance
+            // without making the user wait too long on persistent ones.
+            retry: 3,
+            retryDelay: (attemptIndex) =>
+              Math.min(1000 * 2 ** attemptIndex, 30_000),
+          },
+          mutations: {
+            // Mutations: 1 retry. More than that risks duplicate writes for
+            // non-idempotent operations.
             retry: 1,
+            retryDelay: 1_000,
           },
         },
       }),

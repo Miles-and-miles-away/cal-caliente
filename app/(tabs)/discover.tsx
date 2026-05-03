@@ -14,6 +14,8 @@ import { FilterChips } from "@/components/filter-chips";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
+import { CACHE_KEYS, CACHE_TTL } from "@/lib/cache";
+import { useCachedQuery } from "@/hooks/use-cached-query";
 import {
   DANCE_STYLE_OPTIONS,
   JAPAN_CITIES,
@@ -82,7 +84,21 @@ export default function DiscoverScreen() {
     };
   }, [dateRange, danceFilter, cityFilter, debouncedSearch, customStartDate, customEndDate]);
 
-  const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
+  const liveQuery = trpc.events.list.useQuery(queryParams);
+  // Cache search results per filter combination. The cache key hashes the
+  // query params so each unique filter+search combination gets its own slot.
+  const cacheKey = useMemo(() => {
+    // Stable string from object — JSON.stringify is fine here since the keys
+    // are inserted in the same order every render (memoized object above).
+    const hash = JSON.stringify(queryParams);
+    return CACHE_KEYS.searchResults(hash);
+  }, [queryParams]);
+  const { data: events, isLoading, isCached } = useCachedQuery(
+    liveQuery,
+    cacheKey,
+    CACHE_TTL.searchResults,
+  );
+  const refetch = liveQuery.refetch;
 
   const eventsList = (events ?? []) as any[];
 
@@ -230,12 +246,12 @@ export default function DiscoverScreen() {
         {/* Results count */}
         <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            {eventsList.length} event{eventsList.length !== 1 ? "s" : ""} found
+            {eventsList.length} event{eventsList.length !== 1 ? "s" : ""} found{isCached ? " · cached" : ""}
           </Text>
         </View>
       </View>
     ),
-    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router, customStartDate, customEndDate]
+    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, isCached, router, customStartDate, customEndDate]
   );
 
   const ListFooterComponent = useCallback(

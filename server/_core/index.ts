@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { corsMiddleware } from "./cors";
+import { trpcRateLimit } from "./rate-limit";
 import { getDb } from "../db";
 import { startScheduler } from "../scraper";
 import { sql } from "drizzle-orm";
@@ -79,6 +80,11 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Trust one reverse-proxy hop so rate-limit + logging see the real client IP
+  // from X-Forwarded-For. `1` (not `true`) is what express-rate-limit asks for —
+  // `true` would let any client spoof their IP and bypass the limit.
+  app.set("trust proxy", 1);
+
   // CORS — allowlist enforced in ./cors.ts. Do not replace with reflection.
   app.use(corsMiddleware);
 
@@ -91,8 +97,11 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
+  // Rate limit applied only to tRPC routes — health/OAuth endpoints have their
+  // own characteristics (health is polled, OAuth has its own flow control).
   app.use(
     "/api/trpc",
+    trpcRateLimit,
     createExpressMiddleware({
       router: appRouter,
       createContext,
