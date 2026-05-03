@@ -128,3 +128,8 @@
 - [x] Remove refresh button from Calendar screen
 - [x] Add full-width red refresh button at bottom of Discover only
 - [x] Button shows white "Refresh" text and spinning icon while loading
+- [x] Reduce refresh button height (paddingVertical: 12)
+- [x] Add refresh button to Calendar page
+- [x] Add refresh button to Map page
+- [x] Add custom date range option to Discover filters
+- [x] All 155 tests passing with new UI changes

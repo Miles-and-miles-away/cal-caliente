@@ -29,6 +29,8 @@ export default function DiscoverScreen() {
   const [cityFilter, setCityFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState<string>("upcoming");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   // Memoize query parameters so they don't change on every render
   const queryParams = useMemo(() => {
@@ -47,6 +49,11 @@ export default function DiscoverScreen() {
     } else if (dateRange === "past_month") {
       startDate = new Date(now.getTime() - API_EVENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
       endDate = now.toISOString();
+    } else if (dateRange === "custom") {
+      if (customStartDate) startDate = new Date(customStartDate).toISOString();
+      if (customEndDate) endDate = new Date(customEndDate).toISOString();
+    } else if (dateRange === "all") {
+      // No date filtering
     }
 
     return {
@@ -57,7 +64,7 @@ export default function DiscoverScreen() {
       search: search.trim() || undefined,
       limit: 100,
     };
-  }, [dateRange, danceFilter, cityFilter, search]);
+  }, [dateRange, danceFilter, cityFilter, search, customStartDate, customEndDate]);
 
   const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
 
@@ -135,6 +142,44 @@ export default function DiscoverScreen() {
           <FilterChips options={DATE_RANGE_OPTIONS} selected={dateRange} onSelect={setDateRange} />
         </View>
 
+        {/* Custom date range inputs */}
+        {dateRange === "custom" && (
+          <View style={{ marginHorizontal: 16, marginBottom: 12, gap: 8 }}>
+            <TextInput
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: colors.foreground,
+              }}
+              placeholder="Start date (YYYY-MM-DD)"
+              placeholderTextColor={colors.muted}
+              value={customStartDate}
+              onChangeText={setCustomStartDate}
+            />
+            <TextInput
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: colors.foreground,
+              }}
+              placeholder="End date (YYYY-MM-DD)"
+              placeholderTextColor={colors.muted}
+              value={customEndDate}
+              onChangeText={setCustomEndDate}
+            />
+          </View>
+        )}
+
         {/* Manage Sources link */}
         <Pressable
           onPress={() => router.push("/sites" as any)}
@@ -174,7 +219,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
     ),
-    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router]
+    [colors, search, danceFilter, cityFilter, dateRange, eventsList.length, router, customStartDate, customEndDate]
   );
 
   const ListFooterComponent = useCallback(
@@ -187,7 +232,7 @@ export default function DiscoverScreen() {
             {
               backgroundColor: isRefreshing || isLoading ? "#D81B60" : "#E91E63",
               borderRadius: 8,
-              paddingVertical: 16,
+              paddingVertical: 12,
               alignItems: "center",
               justifyContent: "center",
               opacity: pressed ? 0.8 : 1,
@@ -197,7 +242,7 @@ export default function DiscoverScreen() {
           {isRefreshing ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
+            <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
               Refresh
             </Text>
           )}

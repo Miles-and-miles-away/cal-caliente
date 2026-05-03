@@ -57,7 +57,8 @@ export default function CalendarScreen() {
     [danceFilter, monthStart, monthEnd]
   );
 
-  const { data: events, isLoading } = trpc.events.list.useQuery(queryParams);
+  const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const eventsList = useMemo(() => {
     const raw = (events ?? []) as any[];
@@ -113,6 +114,15 @@ export default function CalendarScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetch]);
 
   const monthLabel = new Date(currentYear, currentMonth).toLocaleDateString("en-US", {
     month: "long",
@@ -281,6 +291,32 @@ export default function CalendarScreen() {
             </Text>
           </View>
         )}
+
+        {/* Refresh button */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, marginBottom: 20 }}>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={isRefreshing || isLoading}
+            style={({ pressed }) => [
+              {
+                backgroundColor: isRefreshing || isLoading ? "#D81B60" : "#E91E63",
+                borderRadius: 8,
+                paddingVertical: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+                Refresh
+              </Text>
+            )}
+          </Pressable>
+        </View>
       </ScrollView>
     </ScreenContainer>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -30,6 +30,7 @@ export default function MapScreen() {
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const now = useMemo(() => new Date(), []);
   const lookaheadEnd = useMemo(
@@ -37,7 +38,7 @@ export default function MapScreen() {
     [now]
   );
 
-  const { data: events, isLoading } = trpc.events.list.useQuery({
+  const { data: events, isLoading, refetch } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
     city: cityFilter || undefined,
     startDate: now.toISOString(),
@@ -99,6 +100,15 @@ ${markers.join("\n")}
       Linking.openURL(url);
     }
   };
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetch]);
 
   return (
     <ScreenContainer>
@@ -210,6 +220,32 @@ ${markers.join("\n")}
               </Text>
             </View>
           )}
+
+          {/* Refresh button */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 16, marginBottom: 20 }}>
+            <Pressable
+              onPress={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: isRefreshing || isLoading ? "#D81B60" : "#E91E63",
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+                  Refresh
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </ScrollView>
       )}
     </ScreenContainer>

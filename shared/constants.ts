@@ -169,6 +169,7 @@ export const DATE_RANGE_OPTIONS: readonly { label: string; value: string }[] = [
   { label: "This Week", value: "week" },
   { label: "This Month", value: "month" },
   { label: "Past Month", value: "past_month" },
+  { label: "Custom", value: "custom" },
   { label: "All", value: "all" },
 ] as const;
 
