@@ -17,12 +17,12 @@ import { trpc } from "@/lib/trpc";
 import {
   DANCE_STYLE_OPTIONS,
   DANCE_STYLE_COLORS,
-  DANCE_STYLE_LABELS,
   JAPAN_CITIES,
   API_EVENT_LOOKAHEAD_DAYS,
   DEFAULT_MAP_REGION,
 } from "@/shared/constants";
 import { formatEventDate, formatEventTime } from "@/shared/types";
+import { buildMapHtml } from "@/lib/map-html";
 
 export default function MapScreen() {
   const colors = useColors();
@@ -48,7 +48,15 @@ export default function MapScreen() {
 
   const eventsWithLocation = useMemo(() => {
     if (!events) return [];
-    return (events as any[]).filter((e: any) => e.latitude && e.longitude);
+    // Drizzle returns decimal columns as strings, so `"0.0000000"` is truthy
+    // and the previous truthy-check would render literal 0,0 events at the
+    // null island. Parse and verify both coordinates are real, finite, and
+    // non-zero (any event placed exactly at 0,0 is almost certainly a stub).
+    return (events as any[]).filter((e: any) => {
+      const lat = Number(e.latitude);
+      const lng = Number(e.longitude);
+      return Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+    });
   }, [events]);
 
   const eventsByCity = useMemo(() => {
@@ -63,33 +71,10 @@ export default function MapScreen() {
 
   const cities = Object.keys(eventsByCity).sort();
 
-  // Build an inline HTML map using Leaflet (no API key needed)
-  const mapHtml = useMemo(() => {
-    const markers = eventsWithLocation.map((ev: any) => {
-      const color = DANCE_STYLE_COLORS[ev.danceStyle ?? "other"] ?? "#718096";
-      const label = (ev.title ?? "").replace(/'/g, "\\'").replace(/\n/g, " ");
-      const style = DANCE_STYLE_LABELS[ev.danceStyle ?? "other"] ?? "Dance";
-      return `L.circleMarker([${ev.latitude}, ${ev.longitude}], {radius: 8, fillColor: '${color}', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9}).addTo(map).bindPopup('<b>${label}</b><br/><small>${style}</small>');`;
-    });
-
-    return `<!DOCTYPE html>
-<html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;}</style>
-</head><body>
-<div id="map"></div>
-<script>
-var map = L.map('map').setView([${DEFAULT_MAP_REGION.latitude}, ${DEFAULT_MAP_REGION.longitude}], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap',
-  maxZoom: 18
-}).addTo(map);
-${markers.join("\n")}
-</script>
-</body></html>`;
-  }, [eventsWithLocation]);
+  const mapHtml = useMemo(
+    () => buildMapHtml(eventsWithLocation, DEFAULT_MAP_REGION),
+    [eventsWithLocation],
+  );
 
   const openEventInMaps = (ev: any) => {
     if (!ev?.latitude || !ev?.longitude) return;

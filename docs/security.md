@@ -92,13 +92,35 @@ Sensitive configuration is managed through environment variables, never hardcode
 
 ---
 
+## CORS Policy
+
+The API enforces a CORS **allowlist** — not origin reflection. The middleware lives in `server/_core/cors.ts` and accepts only:
+
+- `http(s)://localhost` and `http(s)://127.0.0.1` on any port (local dev)
+- The Manus sandbox/preview pattern: `https://<port>-<id>.<region>.manuspre.computer`
+- Any explicit origins listed in the `ALLOWED_ORIGINS` env var (comma-separated, exact match)
+
+Native iOS/Android requests do not send an `Origin` header and are unaffected — CORS only governs browser callers (Expo web, future web build).
+
+### Why allowlist, not reflection
+
+Origin reflection (`Access-Control-Allow-Origin: <req.origin>`) combined with `Access-Control-Allow-Credentials: true` lets *any* website make authenticated cross-origin requests against the API. That is a CSRF vector against `auth.logout` today and against every authenticated mutation we ship in the future. Allowlisting closes this hole at the cost of one config update per new origin.
+
+### Adding a new origin
+
+1. If it matches a stable pattern (a new dev host family, a sandbox-style preview), add a regex to `DEV_ORIGIN_PATTERNS` in `server/_core/cors.ts`.
+2. For production / single-domain deployments, set `ALLOWED_ORIGINS=https://your-domain.com` in the server environment.
+
+**Do not** "fix" a CORS error by reverting the middleware to reflect `req.headers.origin`. The regression test in `tests/cors.test.ts` will catch that.
+
+---
+
 ## Production Recommendations
 
 The following security measures are recommended for production deployment but are not yet implemented:
 
 1. **Rate limiting** — Add rate limits on mutation endpoints (source add, scrape trigger) to prevent abuse.
-2. **CORS origin whitelist** — Replace the development CORS policy (reflect any origin) with a strict whitelist of allowed origins.
-3. **CSP headers** — Add Content Security Policy headers to prevent XSS in the web version.
-4. **HTTPS enforcement** — Ensure all traffic uses TLS in production.
-5. **Source moderation** — Add admin approval workflow for user-submitted sources before they are scraped.
-6. **Audit logging** — Log all mutation operations with user identity and timestamp.
+2. **CSP headers** — Add Content Security Policy headers to prevent XSS in the web version.
+3. **HTTPS enforcement** — Ensure all traffic uses TLS in production.
+4. **Source moderation** — Add admin approval workflow for user-submitted sources before they are scraped.
+5. **Audit logging** — Log all mutation operations with user identity and timestamp.

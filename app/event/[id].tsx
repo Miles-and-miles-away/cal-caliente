@@ -6,6 +6,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { useFavorites } from "@/lib/favorites-context";
 import { trpc } from "@/lib/trpc";
+import { isSafeExternalUrl } from "@/lib/utils";
 import {
   DANCE_STYLE_COLORS,
   DANCE_STYLE_LABELS,
@@ -20,7 +21,9 @@ export default function EventDetailScreen() {
   const colors = useColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const eventId = parseInt(id ?? "0", 10);
+  // Strict integer parse — `parseInt("123abc")` returns 123 and would query
+  // the wrong event. Require the whole string to be digits.
+  const eventId = id && /^\d+$/.test(id) ? Number(id) : 0;
   const { isFavorite, toggleFavorite } = useFavorites();
   const saved = isFavorite(eventId);
 
@@ -254,8 +257,8 @@ export default function EventDetailScreen() {
             </View>
           </Pressable>
 
-          {/* Source link */}
-          {ev.sourceUrl && (
+          {/* Source link — only render if scraped URL passes http(s) check */}
+          {isSafeExternalUrl(ev.sourceUrl) && (
             <Pressable onPress={() => Linking.openURL(ev.sourceUrl)} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}>
                 <IconSymbol name="link" size={18} color={colors.primary} />

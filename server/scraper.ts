@@ -12,9 +12,12 @@
  * - User-agent is clearly identified
  */
 
+import { lookup as dnsLookup } from "node:dns/promises";
+import { createHash } from "node:crypto";
 import {
   getActiveSources,
   addScrapeLog,
+  pruneOldScrapeLogs,
   updateSourceScrapedAt,
   upsertEvent,
 } from "./db";
@@ -82,6 +85,83 @@ export function sanitizeUrl(url: string): string | null {
   }
 }
 
+// ─── SSRF protection ────────────────────────────────────────────────────────
+// Block requests to private, loopback, link-local, and metadata-service IPs.
+// `fetch()` follows redirects by default; we set `redirect: "manual"` and
+// re-validate every hop ourselves, otherwise a public URL could redirect to
+// `http://169.254.169.254/` (AWS/GCP metadata) and exfiltrate creds.
+//
+// This check is best-effort against DNS rebinding (the IP can change between
+// our lookup and the OS resolver's lookup inside fetch). Mitigations like
+// pinning the resolved IP into the request would require a custom HTTPS agent;
+// not worth the complexity until we have a real exposure.
+
+const MAX_REDIRECTS = 5;
+
+export function isPrivateIp(ip: string): boolean {
+  if (!ip) return true;
+  // IPv4
+  const m = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [parseInt(m[1], 10), parseInt(m[2], 10)];
+    if (a === 10) return true;                              // 10.0.0.0/8
+    if (a === 127) return true;                             // loopback
+    if (a === 0) return true;                               // 0.0.0.0/8
+    if (a === 169 && b === 254) return true;                // link-local + AWS/GCP metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;       // 172.16.0.0/12
+    if (a === 192 && b === 168) return true;                // 192.168.0.0/16
+    if (a >= 224) return true;                              // multicast / reserved
+    return false;
+  }
+  // IPv6 — block loopback, link-local, unique-local, IPv4-mapped private ranges
+  const v6 = ip.toLowerCase();
+  if (v6 === "::" || v6 === "::1") return true;
+  if (v6.startsWith("fe80:")) return true;                  // link-local
+  if (v6.startsWith("fc") || v6.startsWith("fd")) return true; // unique-local
+  if (v6.startsWith("ff")) return true;                     // multicast
+  if (v6.startsWith("::ffff:")) {
+    // IPv4-mapped IPv6
+    const v4 = v6.slice("::ffff:".length);
+    return isPrivateIp(v4);
+  }
+  return false;
+}
+
+async function assertPublicHost(hostname: string): Promise<void> {
+  // If hostname is itself a literal IP, check directly.
+  if (/^[\d.]+$/.test(hostname) || hostname.includes(":")) {
+    if (isPrivateIp(hostname)) throw new Error(`Refusing to fetch private host: ${hostname}`);
+    return;
+  }
+  const results = await dnsLookup(hostname, { all: true });
+  for (const r of results) {
+    if (isPrivateIp(r.address)) {
+      throw new Error(`Refusing to fetch ${hostname} — resolves to private ${r.address}`);
+    }
+  }
+}
+
+export async function safeFetch(initialUrl: string, init: RequestInit = {}): Promise<Response> {
+  let url = initialUrl;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const parsed = new URL(url);
+    if (!ALLOWED_URL_PROTOCOLS.includes(parsed.protocol as any)) {
+      throw new Error(`Refusing non-http(s) URL: ${parsed.protocol}`);
+    }
+    await assertPublicHost(parsed.hostname);
+
+    const res = await fetch(url, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return res;
+      url = new URL(loc, url).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+}
+
 // ─── HTML Adapter (stub — ready for LLM integration) ─────────────────────────
 
 export class HtmlScraperAdapter implements ScraperAdapter {
@@ -102,7 +182,7 @@ export class HtmlScraperAdapter implements ScraperAdapter {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
 
-      const response = await fetch(sanitized, {
+      const response = await safeFetch(sanitized, {
         headers: { "User-Agent": SCRAPER_USER_AGENT },
         signal: controller.signal,
       });
@@ -200,7 +280,7 @@ export class RssScraperAdapter implements ScraperAdapter {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
 
-      const response = await fetch(sanitized, {
+      const response = await safeFetch(sanitized, {
         headers: { "User-Agent": SCRAPER_USER_AGENT },
         signal: controller.signal,
       });
@@ -257,9 +337,18 @@ export async function scrapeSource(source: {
 
     for (const ev of scrapedEvents) {
       try {
+        // Synthesize an externalId when the adapter doesn't provide one,
+        // otherwise upsertEvent's null-externalId branch falls through to a
+        // plain insert and creates a duplicate on every scrape cycle.
+        const externalId =
+          ev.externalId ??
+          createHash("sha1")
+            .update(`${source.id}|${ev.title}|${ev.startAt}`)
+            .digest("hex")
+            .slice(0, 32);
         const insertEvent: InsertEvent = {
           sourceId: source.id,
-          externalId: ev.externalId ?? null,
+          externalId,
           title: ev.title,
           description: ev.description ?? null,
           danceStyle: (ev.danceStyle ?? null) as InsertEvent["danceStyle"],
@@ -310,22 +399,49 @@ export async function scrapeSource(source: {
 // ─── Scheduler ───────────────────────────────────────────────────────────────
 
 let schedulerInterval: ReturnType<typeof setInterval> | null = null;
+let cycleInFlight = false;
+
+const SCRAPE_CONCURRENCY = 4;
 
 export async function runAllScrapers(): Promise<void> {
-  console.log("[Scraper] Starting scrape cycle...");
-  const sources = await getActiveSources();
-  console.log(`[Scraper] Found ${sources.length} active sources`);
-
-  let totalFound = 0;
-  let totalAdded = 0;
-
-  for (const source of sources) {
-    const result = await scrapeSource(source);
-    totalFound += result.eventsFound;
-    totalAdded += result.eventsAdded;
+  // Overlap guard — a slow cycle (many sources × 15s timeout) can run longer
+  // than SCRAPER_INTERVAL_MS. Without this, setInterval would fire a second
+  // cycle on top of the first and double the load on every source.
+  if (cycleInFlight) {
+    console.warn("[Scraper] Previous cycle still running, skipping this tick");
+    return;
   }
+  cycleInFlight = true;
+  try {
+    console.log("[Scraper] Starting scrape cycle...");
+    const sources = await getActiveSources();
+    console.log(`[Scraper] Found ${sources.length} active sources`);
 
-  console.log(`[Scraper] Cycle complete: ${totalFound} found, ${totalAdded} added`);
+    let totalFound = 0;
+    let totalAdded = 0;
+
+    // Run sources with bounded concurrency. Sequential scraping made one slow
+    // source serialize the whole cycle.
+    const queue = [...sources];
+    const workers = Array.from({ length: Math.min(SCRAPE_CONCURRENCY, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const source = queue.shift();
+        if (!source) break;
+        const result = await scrapeSource(source);
+        totalFound += result.eventsFound;
+        totalAdded += result.eventsAdded;
+      }
+    });
+    await Promise.all(workers);
+
+    console.log(`[Scraper] Cycle complete: ${totalFound} found, ${totalAdded} added`);
+    // Bound scrape_logs growth — keep ~30 days of audit history.
+    await pruneOldScrapeLogs(30).catch((err) =>
+      console.warn("[Scraper] Failed to prune logs:", err.message),
+    );
+  } finally {
+    cycleInFlight = false;
+  }
 }
 
 export function startScheduler(): void {
