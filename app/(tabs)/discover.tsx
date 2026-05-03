@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -25,6 +25,13 @@ export default function DiscoverScreen() {
   const colors = useColors();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  // Debounce the search term so we only refetch ~300ms after the user stops
+  // typing, instead of hitting the API on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [dateRange, setDateRange] = useState<string>("upcoming");
@@ -50,8 +57,17 @@ export default function DiscoverScreen() {
       startDate = new Date(now.getTime() - API_EVENT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
       endDate = now.toISOString();
     } else if (dateRange === "custom") {
-      if (customStartDate) startDate = new Date(customStartDate).toISOString();
-      if (customEndDate) endDate = new Date(customEndDate).toISOString();
+      // Guard against `new Date("garbage").toISOString()` — that throws and
+      // would crash the whole memo. Silently ignore unparseable input; the UI
+      // will show "0 events found" until the user types a valid date.
+      if (customStartDate) {
+        const d = new Date(customStartDate);
+        if (!Number.isNaN(d.getTime())) startDate = d.toISOString();
+      }
+      if (customEndDate) {
+        const d = new Date(customEndDate);
+        if (!Number.isNaN(d.getTime())) endDate = d.toISOString();
+      }
     } else if (dateRange === "all") {
       // No date filtering
     }
@@ -61,10 +77,10 @@ export default function DiscoverScreen() {
       city: cityFilter || undefined,
       startDate,
       endDate,
-      search: search.trim() || undefined,
+      search: debouncedSearch.trim() || undefined,
       limit: 100,
     };
-  }, [dateRange, danceFilter, cityFilter, search, customStartDate, customEndDate]);
+  }, [dateRange, danceFilter, cityFilter, debouncedSearch, customStartDate, customEndDate]);
 
   const { data: events, isLoading, refetch } = trpc.events.list.useQuery(queryParams);
 

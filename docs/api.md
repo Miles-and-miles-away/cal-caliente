@@ -7,7 +7,7 @@
 
 ## Overview
 
-The backend exposes a **tRPC** API with three router groups: `events`, `sources`, and `preferences`. All endpoints use JSON encoding over HTTP GET (queries) or POST (mutations). Input validation is enforced via Zod schemas on every endpoint.
+The backend exposes a **tRPC** API with three active router groups today: `auth`, `events`, and `sources`, plus a `scraper` router for log inspection. A `preferences` router is planned but not yet implemented (the database table and helpers exist; no procedures are exposed). All endpoints use JSON encoding over HTTP GET (queries) or POST (mutations). Input validation is enforced via Zod schemas on every endpoint.
 
 ---
 
@@ -29,12 +29,11 @@ Fetches a paginated, filtered list of events.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `danceStyle` | `string` | No | — | Filter by dance style (`salsa`, `bachata`, `both`, `other`) |
-| `eventType` | `string` | No | — | Filter by event type (`social`, `workshop`, `festival`, `class`, `performance`, `other`) |
+| `danceStyle` | `string` | No | — | Filter by dance style (`salsa`, `bachata`, `zouk`, `kizomba`, `merengue`, `cha-cha-cha`, `cumbia`, `reggaeton`, `samba`, `tango`, `rumba`, `mambo`, `afro-latin`, `mixed`, `other`) |
+| `eventType` | `string` | No | — | Filter by event type (`social`, `workshop`, `festival`, `class`, `congress`, `bootcamp`, `performance`, `other`) |
 | `city` | `string` | No | — | Filter by city name |
-| `prefecture` | `string` | No | — | Filter by prefecture |
-| `startDate` | `string` (ISO) | No | — | Events starting on or after this date |
-| `endDate` | `string` (ISO) | No | — | Events starting on or before this date |
+| `startDate` | `string` (ISO-8601) | No | — | Events starting on or after this date. Rejected if not a parseable date. |
+| `endDate` | `string` (ISO-8601) | No | — | Events starting on or before this date. Rejected if not a parseable date. |
 | `search` | `string` | No | — | Full-text search across title, venue, organizer, city |
 | `limit` | `number` | No | 50 | Max results (1–500) |
 | `offset` | `number` | No | 0 | Pagination offset |
@@ -43,7 +42,7 @@ Fetches a paginated, filtered list of events.
 
 ---
 
-### `events.getById` — Query
+### `events.get` — Query
 
 Fetches a single event by ID.
 
@@ -87,7 +86,7 @@ Registers a new user-added event source.
 
 ---
 
-### `sources.toggleActive` — Mutation
+### `sources.toggle` — Mutation
 
 Toggles the `isActive` flag on a source.
 
@@ -112,45 +111,21 @@ Deletes a user-added source. System-seeded sources cannot be deleted.
 
 ---
 
-### `sources.triggerScrape` — Mutation
+## Scraper Router (`scraper.*`)
 
-Manually triggers a scrape cycle for a specific source.
+### `scraper.logs` — Query
 
-**Input Schema:**
+Returns the 20 most recent scrape log entries for debugging.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | `number` | Yes | Source ID |
+**Input Schema:** None.
 
-**Response:** `{ eventsFound: number, eventsAdded: number }`.
+**Response:** Array of scrape log objects ordered by `createdAt` descending.
 
 ---
 
-## Preferences Router (`preferences.*`)
+## Preferences Router
 
-### `preferences.get` — Query
-
-Fetches preferences for the authenticated user.
-
-**Input Schema:** None (uses session user ID).
-
-**Response:** User preferences object or `null`.
-
----
-
-### `preferences.upsert` — Mutation
-
-Creates or updates preferences for the authenticated user.
-
-**Input Schema:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `city` | `string` | No | Preferred city |
-| `maxDistanceKm` | `number` | No | Max distance from station (km) |
-| `danceStyleFilter` | `string` | No | JSON array of preferred styles |
-| `notificationsEnabled` | `boolean` | No | Enable push notifications |
-| `eventTypeFilter` | `string` | No | JSON array of preferred event types |
+> **Not yet implemented.** The `user_preferences` table and `getUserPreferences` / `upsertUserPreferences` helpers exist in `server/db.ts`, but no tRPC procedures are exposed today. Preferences are stored client-side in AsyncStorage and will sync to the backend once OAuth-gated endpoints land.
 
 ---
 

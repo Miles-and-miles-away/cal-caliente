@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, like, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -119,11 +119,13 @@ export async function listEvents(params: {
   const limit = Math.min(params.limit ?? API_DEFAULT_PAGE_SIZE, API_MAX_PAGE_SIZE);
   const offset = params.offset ?? 0;
 
+  // Order by startAt + id so pagination is deterministic when two events share
+  // a timestamp — otherwise an offset query can skip or repeat rows.
   return db
     .select()
     .from(events)
     .where(and(...conditions))
-    .orderBy(events.startAt)
+    .orderBy(events.startAt, events.id)
     .limit(limit)
     .offset(offset);
 }
@@ -218,6 +220,13 @@ export async function getRecentScrapeLogs(limit = 20) {
   return db.select().from(scrapeLogs).orderBy(desc(scrapeLogs.createdAt)).limit(limit);
 }
 
+export async function pruneOldScrapeLogs(retainDays = 30) {
+  const db = await getDb();
+  if (!db) return;
+  const cutoff = new Date(Date.now() - retainDays * 24 * 60 * 60 * 1000);
+  await db.delete(scrapeLogs).where(lt(scrapeLogs.createdAt, cutoff));
+}
+
 // ─── User Preferences Queries ────────────────────────────────────────────────
 
 export async function getUserPreferences(userId: number) {
@@ -231,13 +240,36 @@ export async function getUserPreferences(userId: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+// Allowlist of fields a router is permitted to set on user_preferences. Spreads
+// from untrusted input would otherwise let a caller write arbitrary columns
+// (mass assignment), so we filter here defensively even when callers think
+// they validated upstream.
+const USER_PREF_FIELDS = [
+  "city",
+  "prefecture",
+  "latitude",
+  "longitude",
+  "maxDistanceKm",
+  "nearestStation",
+  "maxWalkMinutes",
+  "danceStyleFilter",
+  "eventTypeFilters",
+  "notificationsEnabled",
+  "notifyBeforeHours",
+  "theme",
+] as const;
+
 export async function upsertUserPreferences(userId: number, prefs: Record<string, unknown>) {
   const db = await getDb();
   if (!db) return;
+  const safe: Record<string, unknown> = {};
+  for (const field of USER_PREF_FIELDS) {
+    if (field in prefs) safe[field] = prefs[field];
+  }
   const existing = await getUserPreferences(userId);
   if (existing) {
-    await db.update(userPreferences).set(prefs).where(eq(userPreferences.userId, userId));
+    await db.update(userPreferences).set(safe).where(eq(userPreferences.userId, userId));
   } else {
-    await db.insert(userPreferences).values({ userId, ...prefs } as any);
+    await db.insert(userPreferences).values({ userId, ...safe } as any);
   }
 }
