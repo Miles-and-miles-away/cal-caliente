@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, desc, eq, gte, like, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -7,6 +8,7 @@ import {
   eventSources,
   scrapeLogs,
   userPreferences,
+  type Event,
   type InsertEvent,
   type InsertEventSource,
 } from "../drizzle/schema";
@@ -22,6 +24,34 @@ import {
  */
 export function escapeLikePattern(input: string): string {
   return input.replace(/[%_\\]/g, (char) => `\\${char}`);
+}
+
+// ─── Cross-source dedup ──────────────────────────────────────────────────────
+//
+// computeCanonicalKey produces a stable hash that's the same for the "same
+// event" reported by different sources. Used by upsertEvent to merge instead
+// of duplicating. Tuned to handle the realistic spread of titles across
+// sources (parenthetical prefixes, year suffixes, punctuation variance).
+
+export function normalizeTitleForKey(title: string): string {
+  return title
+    .normalize("NFC")
+    .toLowerCase()
+    // Strip leading parenthetical/bracketed prefix: "(JAPAN) Foo", "[FESTIVAL] Foo"
+    .replace(/^[(\[][^)\]]+[)\]]\s*/, "")
+    // Strip 4-digit years (date provides disambiguation)
+    .replace(/\b(19|20)\d{2}\b/g, "")
+    // Collapse non-alphanumeric runs (incl. CJK punctuation, em-dashes) to one space
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+export function computeCanonicalKey(title: string, startAt: Date | string): string {
+  const t = normalizeTitleForKey(title);
+  const date = (startAt instanceof Date ? startAt : new Date(startAt))
+    .toISOString()
+    .slice(0, 10); // YYYY-MM-DD — day precision so multi-day festivals match
+  return createHash("sha256").update(`${t}|${date}`).digest("hex").slice(0, 32);
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -137,26 +167,50 @@ export async function getEvent(id: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+// Merge incoming fields into an existing row, preferring incoming values when
+// they're non-empty and falling back to existing values otherwise. Picks the
+// "richer" data across re-runs and across sources.
+function mergeEventFields(existing: Event, incoming: InsertEvent): Partial<InsertEvent> {
+  const merged: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    // Skip immutable identity fields and the dedup key — they're set once.
+    if (key === "id" || key === "createdAt" || key === "canonicalKey") continue;
+    const isMeaningful = value !== null && value !== undefined && value !== "";
+    if (isMeaningful) {
+      merged[key] = value;
+    }
+    // If incoming is empty/null, leave the existing value untouched (don't write null over a real value).
+  }
+  return merged as Partial<InsertEvent>;
+}
+
 export async function upsertEvent(event: InsertEvent) {
   const db = await getDb();
   if (!db) return;
-  if (event.externalId) {
-    const existing = await db
-      .select({ id: events.id })
-      .from(events)
-      .where(
-        and(
-          eq(events.sourceId, event.sourceId),
-          eq(events.externalId, event.externalId)
-        )
-      )
-      .limit(1);
-    if (existing.length > 0) {
-      await db.update(events).set(event).where(eq(events.id, existing[0].id));
-      return;
+
+  const startAt = event.startAt instanceof Date
+    ? event.startAt
+    : new Date(event.startAt as string);
+  const canonicalKey = computeCanonicalKey(event.title, startAt);
+  const eventWithKey: InsertEvent = { ...event, canonicalKey };
+
+  // Cross-source dedup: look up by canonicalKey across all sources. If found,
+  // merge richer fields onto the existing row instead of inserting a duplicate.
+  const existing = await db
+    .select()
+    .from(events)
+    .where(eq(events.canonicalKey, canonicalKey))
+    .limit(1);
+
+  if (existing.length > 0) {
+    const merged = mergeEventFields(existing[0], eventWithKey);
+    if (Object.keys(merged).length > 0) {
+      await db.update(events).set(merged).where(eq(events.id, existing[0].id));
     }
+    return;
   }
-  await db.insert(events).values(event);
+
+  await db.insert(events).values(eventWithKey);
 }
 
 // ─── Source Queries ──────────────────────────────────────────────────────────

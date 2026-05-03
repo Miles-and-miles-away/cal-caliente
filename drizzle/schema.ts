@@ -1,4 +1,4 @@
-import { boolean, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
@@ -17,39 +17,49 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ─── Events ──────────────────────────────────────────────────────────────────
-export const events = mysqlTable("events", {
-  id: int("id").autoincrement().primaryKey(),
-  sourceId: int("sourceId").notNull(),
-  externalId: varchar("externalId", { length: 255 }),
-  title: varchar("title", { length: 500 }).notNull(),
-  description: text("description"),
-  danceStyle: mysqlEnum("danceStyle", [
-    "salsa", "bachata", "zouk", "kizomba", "merengue",
-    "cha-cha-cha", "cumbia", "reggaeton", "samba", "tango",
-    "rumba", "mambo", "afro-latin", "mixed", "other",
-  ]),
-  eventType: mysqlEnum("eventType", [
-    "social", "workshop", "performance", "festival",
-    "class", "congress", "bootcamp", "other",
-  ]),
-  startAt: timestamp("startAt").notNull(),
-  endAt: timestamp("endAt"),
-  venueName: varchar("venueName", { length: 500 }),
-  venueAddress: text("venueAddress"),
-  city: varchar("city", { length: 100 }),
-  prefecture: varchar("prefecture", { length: 100 }),
-  latitude: decimal("latitude", { precision: 10, scale: 7 }),
-  longitude: decimal("longitude", { precision: 10, scale: 7 }),
-  nearestStation: varchar("nearestStation", { length: 200 }),
-  imageUrl: text("imageUrl"),
-  sourceUrl: text("sourceUrl"),
-  price: varchar("price", { length: 200 }),
-  organizer: varchar("organizer", { length: 300 }),
-  isVerified: boolean("isVerified").default(false).notNull(),
-  isCancelled: boolean("isCancelled").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const events = mysqlTable(
+  "events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    sourceId: int("sourceId").notNull(),
+    externalId: varchar("externalId", { length: 255 }),
+    // Cross-source dedup key. Hash of normalized title + start date (day
+    // precision). Same physical event from different sources lands on the
+    // same canonicalKey and gets merged in upsertEvent rather than duplicated.
+    canonicalKey: varchar("canonicalKey", { length: 64 }),
+    title: varchar("title", { length: 500 }).notNull(),
+    description: text("description"),
+    danceStyle: mysqlEnum("danceStyle", [
+      "salsa", "bachata", "zouk", "kizomba", "merengue",
+      "cha-cha-cha", "cumbia", "reggaeton", "samba", "tango",
+      "rumba", "mambo", "afro-latin", "mixed", "other",
+    ]),
+    eventType: mysqlEnum("eventType", [
+      "social", "workshop", "performance", "festival",
+      "class", "congress", "bootcamp", "other",
+    ]),
+    startAt: timestamp("startAt").notNull(),
+    endAt: timestamp("endAt"),
+    venueName: varchar("venueName", { length: 500 }),
+    venueAddress: text("venueAddress"),
+    city: varchar("city", { length: 100 }),
+    prefecture: varchar("prefecture", { length: 100 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    nearestStation: varchar("nearestStation", { length: 200 }),
+    imageUrl: text("imageUrl"),
+    sourceUrl: text("sourceUrl"),
+    price: varchar("price", { length: 200 }),
+    organizer: varchar("organizer", { length: 300 }),
+    isVerified: boolean("isVerified").default(false).notNull(),
+    isCancelled: boolean("isCancelled").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    canonicalKeyIdx: index("events_canonical_key_idx").on(table.canonicalKey),
+  }),
+);
 
 export type Event = typeof events.$inferSelect;
 export type InsertEvent = typeof events.$inferInsert;
