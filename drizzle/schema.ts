@@ -1,4 +1,4 @@
-import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
@@ -27,6 +27,7 @@ export const events = mysqlTable(
     // precision). Same physical event from different sources lands on the
     // same canonicalKey and gets merged in upsertEvent rather than duplicated.
     canonicalKey: varchar("canonicalKey", { length: 64 }),
+    venueDateKey: varchar("venueDateKey", { length: 64 }),
     title: varchar("title", { length: 500 }).notNull(),
     description: text("description"),
     danceStyle: mysqlEnum("danceStyle", [
@@ -57,7 +58,13 @@ export const events = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   (table) => ({
-    canonicalKeyIdx: index("events_canonical_key_idx").on(table.canonicalKey),
+    // UNIQUE on both keys closes the upsertEvent race window: when two
+    // workers both miss the SELECT and both INSERT, the second hits a
+    // duplicate-key error which upsertEvent catches and converts to a merge.
+    // MySQL allows multiple NULL values in a UNIQUE index, so events without
+    // a recognizable canonical/venue key still coexist.
+    canonicalKeyIdx: uniqueIndex("events_canonical_key_idx").on(table.canonicalKey),
+    venueDateKeyIdx: uniqueIndex("events_venue_date_key_idx").on(table.venueDateKey),
   }),
 );
 

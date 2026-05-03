@@ -14,6 +14,7 @@
 
 import { lookup as dnsLookup } from "node:dns/promises";
 import { extractEventDetailFromHtml, extractEventsFromHtml } from "./_core/event-extractor";
+import { parseIcal } from "./_core/ical-parser";
 import {
   getActiveSources,
   addScrapeLog,
@@ -373,7 +374,11 @@ export class InstagramScraperAdapter implements ScraperAdapter {
   }
 }
 
-// ─── RSS/iCal Adapter (stub) ─────────────────────────────────────────────────
+// ─── iCal Adapter ────────────────────────────────────────────────────────────
+//
+// The `rss` source type covers iCal feeds (Google Calendar, Meetup, etc.).
+// Pure deterministic parsing — no LLM call, no prompt drift. RRULE expansion
+// produces concrete occurrences over the next 60 days.
 
 export class RssScraperAdapter implements ScraperAdapter {
   readonly type = "rss";
@@ -391,20 +396,27 @@ export class RssScraperAdapter implements ScraperAdapter {
       const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
 
       const response = await safeFetch(sanitized, {
-        headers: { "User-Agent": SCRAPER_USER_AGENT },
+        headers: {
+          "User-Agent": SCRAPER_USER_AGENT,
+          // Some calendar hosts (notably Meetup) sniff Accept and serve HTML
+          // unless we ask for iCal explicitly.
+          Accept: "text/calendar, application/calendar+xml, */*;q=0.5",
+        },
         signal: controller.signal,
       });
       clearTimeout(timeout);
 
-      if (!response.ok) return [];
+      if (!response.ok) {
+        console.warn(`[Scraper:iCal] HTTP ${response.status} for ${sanitized}`);
+        return [];
+      }
 
       const content = await response.text();
-
-      // TODO: Parse RSS XML or iCal format
-      console.log(`[Scraper:RSS] Fetched ${content.length} chars from ${sanitized} (parser pending)`);
-      return [];
+      const events = parseIcal(content, { now: new Date() });
+      console.log(`[Scraper:iCal] Parsed ${events.length} events from ${sanitized}`);
+      return events;
     } catch (error: any) {
-      console.warn(`[Scraper:RSS] Error: ${error.message}`);
+      console.warn(`[Scraper:iCal] Error: ${error.message}`);
       return [];
     }
   }
