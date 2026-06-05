@@ -65,6 +65,26 @@ describe("buildMapHtml — XSS hardening", () => {
     expect(html).toMatch(/"lat":null/);
   });
 
+  it("passes the approx flag through to the marker JSON", () => {
+    const html = buildMapHtml(
+      [
+        { latitude: 35.6, longitude: 139.7, title: "Exact", danceStyle: "salsa" },
+        { latitude: 35.7, longitude: 139.8, title: "Fallback", danceStyle: "bachata", approx: true },
+      ],
+      REGION,
+    );
+    const jsonMatch = html.match(
+      /<script id="markers" type="application\/json">([\s\S]*?)<\/script>/,
+    );
+    expect(jsonMatch).not.toBeNull();
+    const markers = JSON.parse(jsonMatch![1]);
+    expect(markers[0].approx).toBe(false);
+    expect(markers[1].approx).toBe(true);
+    // Approximate markers get the dashed style + popup note at runtime.
+    expect(html).toContain("approximate area");
+    expect(html).toContain("dashArray");
+  });
+
   it("does not interpolate region values as strings", () => {
     const html = buildMapHtml([], {
       latitude: "35.6); fetch('//evil')//" as any,

@@ -22,6 +22,7 @@ import {
   updateSourceScrapedAt,
   upsertEvent,
 } from "./db";
+import { geocodeMissingEvents } from "./geocode";
 import type { InsertEvent } from "../drizzle/schema";
 import {
   SCRAPER_INTERVAL_MS,
@@ -551,6 +552,16 @@ export async function runAllScrapers(): Promise<void> {
     await Promise.all(workers);
 
     console.log(`[Scraper] Cycle complete: ${totalFound} found, ${totalAdded} added`);
+
+    // Backfill coordinates for events whose source provided an address but no
+    // lat/lng (iCal feeds in particular). Cached per-address, so repeat venues
+    // are nearly free.
+    await geocodeMissingEvents()
+      .then(({ scanned, geocoded }) => {
+        if (scanned > 0) console.log(`[Geocode] ${geocoded}/${scanned} events geocoded`);
+      })
+      .catch((err) => console.warn("[Geocode] Backfill failed:", err.message));
+
     // Bound scrape_logs growth — keep ~30 days of audit history.
     await pruneOldScrapeLogs(30).catch((err) =>
       console.warn("[Scraper] Failed to prune logs:", err.message),
