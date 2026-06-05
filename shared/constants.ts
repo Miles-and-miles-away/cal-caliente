@@ -173,6 +173,17 @@ export const DATE_RANGE_OPTIONS: readonly { label: string; value: string }[] = [
   { label: "All", value: "all" },
 ] as const;
 
+// Date ranges for the Map screen. Day-granular options ("where can I dance
+// tonight?") and no "custom" — the map has no date-input UI. "Upcoming"
+// preserves the map's original now → API_EVENT_LOOKAHEAD_DAYS window.
+export const MAP_DATE_RANGE_OPTIONS: readonly { label: string; value: string }[] = [
+  { label: "Upcoming", value: "upcoming" },
+  { label: "Today", value: "today" },
+  { label: "Tomorrow", value: "tomorrow" },
+  { label: "This Week", value: "week" },
+  { label: "This Month", value: "month" },
+] as const;
+
 // ─── Map Defaults ────────────────────────────────────────────────────────────
 
 export const DEFAULT_MAP_REGION = {

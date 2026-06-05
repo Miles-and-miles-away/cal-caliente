@@ -18,6 +18,7 @@ import {
   DANCE_STYLE_OPTIONS,
   DANCE_STYLE_COLORS,
   JAPAN_CITIES,
+  MAP_DATE_RANGE_OPTIONS,
   API_EVENT_LOOKAHEAD_DAYS,
   DEFAULT_MAP_REGION,
 } from "@/shared/constants";
@@ -29,20 +30,37 @@ export default function MapScreen() {
   const router = useRouter();
   const [danceFilter, setDanceFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
+  const [dateRange, setDateRange] = useState<string>("upcoming");
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const now = useMemo(() => new Date(), []);
-  const lookaheadEnd = useMemo(
-    () => new Date(now.getTime() + API_EVENT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000),
-    [now]
-  );
+  const { startDate, endDate } = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    // Local-midnight boundaries so "Today"/"Tomorrow" match the user's clock.
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    switch (dateRange) {
+      case "today":
+        return { startDate: now, endDate: new Date(startOfToday.getTime() + DAY) };
+      case "tomorrow":
+        return {
+          startDate: new Date(startOfToday.getTime() + DAY),
+          endDate: new Date(startOfToday.getTime() + 2 * DAY),
+        };
+      case "week":
+        return { startDate: now, endDate: new Date(now.getTime() + 7 * DAY) };
+      case "month":
+        return { startDate: now, endDate: new Date(now.getTime() + 30 * DAY) };
+      default: // "upcoming" — original lookahead window
+        return { startDate: now, endDate: new Date(now.getTime() + API_EVENT_LOOKAHEAD_DAYS * DAY) };
+    }
+  }, [now, dateRange]);
 
   const { data: events, isLoading, refetch } = trpc.events.list.useQuery({
     danceStyle: danceFilter === "all" ? undefined : danceFilter,
     city: cityFilter || undefined,
-    startDate: now.toISOString(),
-    endDate: lookaheadEnd.toISOString(),
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
     limit: 100,
   });
 
@@ -105,8 +123,11 @@ export default function MapScreen() {
       <View style={{ marginBottom: 6 }}>
         <FilterChips options={DANCE_STYLE_OPTIONS} selected={danceFilter} onSelect={setDanceFilter} />
       </View>
-      <View style={{ marginBottom: 8 }}>
+      <View style={{ marginBottom: 6 }}>
         <FilterChips options={JAPAN_CITIES} selected={cityFilter} onSelect={setCityFilter} />
+      </View>
+      <View style={{ marginBottom: 8 }}>
+        <FilterChips options={MAP_DATE_RANGE_OPTIONS} selected={dateRange} onSelect={setDateRange} />
       </View>
 
       {isLoading ? (
