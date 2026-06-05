@@ -260,13 +260,29 @@ export default function EventDetailScreen() {
           {/* Source link — only render if scraped URL passes http(s) check */}
           {isSafeExternalUrl(ev.sourceUrl) && (
             <Pressable onPress={() => Linking.openURL(ev.sourceUrl)} style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
                 <IconSymbol name="link" size={18} color={colors.primary} />
                 <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "600", flex: 1 }}>View Original Source</Text>
                 <IconSymbol name="chevron.right" size={14} color={colors.muted} />
               </View>
             </Pressable>
           )}
+
+          {/* Web search — verification path that works even when privacy
+              extensions block Google domains. DuckDuckGo by design. */}
+          <Pressable
+            onPress={() => {
+              const query = [ev.title, ev.venueName, ev.city].filter(Boolean).join(" ");
+              Linking.openURL(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`);
+            }}
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+              <IconSymbol name="magnifyingglass" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "600", flex: 1 }}>Search the Web</Text>
+              <IconSymbol name="chevron.right" size={14} color={colors.muted} />
+            </View>
+          </Pressable>
         </View>
       </ScrollView>
     </ScreenContainer>
