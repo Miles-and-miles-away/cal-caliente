@@ -21,6 +21,7 @@ import {
   MAP_DATE_RANGE_OPTIONS,
   API_EVENT_LOOKAHEAD_DAYS,
   DEFAULT_MAP_REGION,
+  CITY_COORDINATES,
 } from "@/shared/constants";
 import { formatEventDate, formatEventTime } from "@/shared/types";
 import { buildMapHtml } from "@/lib/map-html";
@@ -64,39 +65,81 @@ export default function MapScreen() {
     limit: 100,
   });
 
-  const eventsWithLocation = useMemo(() => {
+  // Events enriched with map coordinates. Sources like iCal feeds carry no
+  // lat/lng, so events without real coordinates fall back to an approximate
+  // pin near their city center (marked `approx`); events with neither
+  // coordinates nor a known city stay in the list but get no pin.
+  const enrichedEvents = useMemo(() => {
     if (!events) return [];
-    // Drizzle returns decimal columns as strings, so `"0.0000000"` is truthy
-    // and the previous truthy-check would render literal 0,0 events at the
-    // null island. Parse and verify both coordinates are real, finite, and
-    // non-zero (any event placed exactly at 0,0 is almost certainly a stub).
-    return (events as any[]).filter((e: any) => {
+    return (events as any[]).map((e: any) => {
+      // Drizzle returns decimal columns as strings, so `"0.0000000"` is truthy
+      // and a naive truthy-check would render literal 0,0 events at the
+      // null island. Parse and verify both coordinates are real, finite, and
+      // non-zero (any event placed exactly at 0,0 is almost certainly a stub).
       const lat = Number(e.latitude);
       const lng = Number(e.longitude);
-      return Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+        return { ...e, approx: false };
+      }
+      const center = e.city ? CITY_COORDINATES[e.city] : undefined;
+      if (!center) return { ...e, latitude: null, longitude: null, approx: false };
+      // Deterministic jitter (golden-angle spiral keyed by event id) so
+      // same-city pins neither stack nor jump between renders.
+      const angle = ((e.id * 137.508) % 360) * (Math.PI / 180);
+      const radius = 0.006 + (e.id % 5) * 0.003;
+      return {
+        ...e,
+        latitude: center.latitude + radius * Math.sin(angle),
+        longitude: center.longitude + radius * Math.cos(angle),
+        approx: true,
+      };
     });
   }, [events]);
 
+  const pinnedEvents = useMemo(
+    () =>
+      enrichedEvents.filter((e: any) => {
+        const lat = Number(e.latitude);
+        const lng = Number(e.longitude);
+        return Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+      }),
+    [enrichedEvents],
+  );
+
+  const approxCount = useMemo(
+    () => pinnedEvents.filter((e: any) => e.approx).length,
+    [pinnedEvents],
+  );
+
   const eventsByCity = useMemo(() => {
     const map: Record<string, any[]> = {};
-    for (const ev of eventsWithLocation) {
+    for (const ev of enrichedEvents) {
       const city = ev.city ?? "Other";
       if (!map[city]) map[city] = [];
       map[city].push(ev);
     }
     return map;
-  }, [eventsWithLocation]);
+  }, [enrichedEvents]);
 
   const cities = Object.keys(eventsByCity).sort();
 
   const mapHtml = useMemo(
-    () => buildMapHtml(eventsWithLocation, DEFAULT_MAP_REGION),
-    [eventsWithLocation],
+    () => buildMapHtml(pinnedEvents, DEFAULT_MAP_REGION),
+    [pinnedEvents],
   );
 
   const openEventInMaps = (ev: any) => {
-    if (!ev?.latitude || !ev?.longitude) return;
-    const url = `https://www.google.com/maps/search/?api=1&query=${ev.latitude},${ev.longitude}`;
+    // Exact coordinates → pin search; approximate/no pin → search by venue
+    // name + city so Google Maps finds the real place rather than a
+    // city-center fallback point.
+    let url: string;
+    if (ev?.latitude && ev?.longitude && !ev.approx) {
+      url = `https://www.google.com/maps/search/?api=1&query=${ev.latitude},${ev.longitude}`;
+    } else {
+      const query = [ev?.venueName, ev?.city].filter(Boolean).join(" ");
+      if (!query) return;
+      url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    }
     if (Platform.OS === "web") {
       window.open(url, "_blank");
     } else {
@@ -158,7 +201,8 @@ export default function MapScreen() {
           <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, flexDirection: "row", alignItems: "center" }}>
             <IconSymbol name="mappin.and.ellipse" size={18} color={colors.primary} />
             <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: "600", marginLeft: 8 }}>
-              {eventsWithLocation.length} events with locations across {cities.length} cit{cities.length !== 1 ? "ies" : "y"}
+              {enrichedEvents.length} event{enrichedEvents.length !== 1 ? "s" : ""} across {cities.length} cit{cities.length !== 1 ? "ies" : "y"}
+              {approxCount > 0 ? ` · ${approxCount} pin${approxCount !== 1 ? "s" : ""} approximate` : ""}
             </Text>
           </View>
 
@@ -222,7 +266,7 @@ export default function MapScreen() {
             <View style={{ alignItems: "center", paddingVertical: 48 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>🗺️</Text>
               <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
-                No events with location data found.{"\n"}Try changing the filters.
+                No events found.{"\n"}Try changing the filters.
               </Text>
             </View>
           )}

@@ -203,6 +203,35 @@ export async function getEvent(id: number) {
   return result.length > 0 ? result[0] : null;
 }
 
+/**
+ * Events that have a venue address but no coordinates yet — candidates for
+ * the post-scrape geocoding backfill.
+ */
+export async function getEventsMissingCoordinates(limit = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({ id: events.id, venueAddress: events.venueAddress })
+    .from(events)
+    .where(and(sql`${events.latitude} IS NULL`, sql`${events.venueAddress} IS NOT NULL`))
+    .limit(limit);
+}
+
+export async function updateEventCoordinates(
+  id: number,
+  latitude: number,
+  longitude: number,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Decimal columns round-trip as strings in drizzle's mysql driver; the
+  // columns are decimal(10,7) so fix the scale explicitly.
+  await db
+    .update(events)
+    .set({ latitude: latitude.toFixed(7), longitude: longitude.toFixed(7) })
+    .where(eq(events.id, id));
+}
+
 // Merge incoming fields into an existing row, preferring incoming values when
 // they're non-empty and falling back to existing values otherwise. Picks the
 // "richer" data across re-runs and across sources.

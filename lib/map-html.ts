@@ -13,6 +13,9 @@ export interface MapEvent {
   longitude: string | number | null | undefined;
   title?: string | null;
   danceStyle?: string | null;
+  // True when the coordinates are a city-center fallback rather than the
+  // actual venue location. Rendered with a dashed, faded marker.
+  approx?: boolean;
 }
 
 export interface MapRegion {
@@ -27,6 +30,7 @@ export function buildMapHtml(events: MapEvent[], region: MapRegion): string {
     color: DANCE_STYLE_COLORS[ev.danceStyle ?? "other"] ?? "#718096",
     title: String(ev.title ?? ""),
     style: DANCE_STYLE_LABELS[ev.danceStyle ?? "other"] ?? "Dance",
+    approx: ev.approx === true,
   }));
 
   // Embed inside <script type="application/json"> — `</script` in the data is
@@ -55,9 +59,13 @@ data.forEach(function(m) {
   var popup = document.createElement('div');
   var b = document.createElement('b'); b.textContent = m.title; popup.appendChild(b);
   popup.appendChild(document.createElement('br'));
-  var s = document.createElement('small'); s.textContent = m.style; popup.appendChild(s);
-  L.circleMarker([m.lat, m.lng], {radius: 8, fillColor: m.color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9})
-    .addTo(map).bindPopup(popup);
+  var s = document.createElement('small');
+  s.textContent = m.approx ? m.style + ' \\u00b7 approximate area' : m.style;
+  popup.appendChild(s);
+  var opts = m.approx
+    ? {radius: 9, fillColor: m.color, color: '#fff', weight: 1.5, dashArray: '3 3', opacity: 0.9, fillOpacity: 0.45}
+    : {radius: 8, fillColor: m.color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9};
+  L.circleMarker([m.lat, m.lng], opts).addTo(map).bindPopup(popup);
 });
 </script>
 </body></html>`;

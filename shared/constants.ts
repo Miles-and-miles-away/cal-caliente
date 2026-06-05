@@ -162,6 +162,23 @@ export const JAPAN_CITIES: readonly { label: string; value: string }[] = [
   { label: "Okinawa", value: "Okinawa" },
 ] as const;
 
+// City-center coordinates for the cities in JAPAN_CITIES. Used as an
+// approximate map-pin fallback for events whose source (e.g. iCal feeds)
+// carries no latitude/longitude. Okinawa uses Naha.
+export const CITY_COORDINATES: Record<string, { latitude: number; longitude: number }> = {
+  Tokyo: { latitude: 35.6762, longitude: 139.6503 },
+  Osaka: { latitude: 34.6937, longitude: 135.5023 },
+  Nagoya: { latitude: 35.1815, longitude: 136.9066 },
+  Fukuoka: { latitude: 33.5904, longitude: 130.4017 },
+  Yokohama: { latitude: 35.4437, longitude: 139.638 },
+  Kobe: { latitude: 34.6901, longitude: 135.1956 },
+  Sapporo: { latitude: 43.0618, longitude: 141.3545 },
+  Kyoto: { latitude: 35.0116, longitude: 135.7681 },
+  Sendai: { latitude: 38.2682, longitude: 140.8694 },
+  Hiroshima: { latitude: 34.3853, longitude: 132.4553 },
+  Okinawa: { latitude: 26.2124, longitude: 127.6809 },
+};
+
 // ─── Date Ranges ─────────────────────────────────────────────────────────────
 
 export const DATE_RANGE_OPTIONS: readonly { label: string; value: string }[] = [
