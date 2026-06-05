@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { useFavorites } from "@/lib/favorites-context";
 import { CACHE_KEYS, CACHE_TTL } from "@/lib/cache";
 import { useCachedQuery } from "@/hooks/use-cached-query";
-import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS } from "@/shared/constants";
+import { DANCE_STYLE_OPTIONS, DANCE_STYLE_COLORS, JAPAN_CITIES } from "@/shared/constants";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -43,6 +43,7 @@ export default function CalendarScreen() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [danceFilter, setDanceFilter] = useState<string>("all");
+  const [cityFilter, setCityFilter] = useState<string>("");
   const [calMode, setCalMode] = useState<CalendarMode>("all");
   // "Show past events" toggle for My Calendar mode. Default off — most users
   // want to see what's coming up, not what they missed. When on, surfaces
@@ -56,18 +57,19 @@ export default function CalendarScreen() {
   const queryParams = useMemo(
     () => ({
       danceStyle: danceFilter === "all" ? undefined : danceFilter,
+      city: cityFilter || undefined,
       startDate: monthStart.toISOString(),
       endDate: monthEnd.toISOString(),
       limit: 200,
     }),
-    [danceFilter, monthStart, monthEnd]
+    [danceFilter, cityFilter, monthStart, monthEnd]
   );
 
   const liveQuery = trpc.events.list.useQuery(queryParams);
   // Wrap with AsyncStorage cache so the calendar shows last-known-good data
   // immediately on launch / when offline. Cache is keyed by month + dance
   // filter so different views don't clobber each other.
-  const cacheKey = `${CACHE_KEYS.eventsByMonth(currentYear, currentMonth)}_${danceFilter}`;
+  const cacheKey = `${CACHE_KEYS.eventsByMonth(currentYear, currentMonth)}_${danceFilter}_${cityFilter}`;
   const { data: events, isLoading, isCached } = useCachedQuery(
     liveQuery,
     cacheKey,
@@ -300,8 +302,13 @@ export default function CalendarScreen() {
         </View>
 
         {/* Dance style filter */}
-        <View style={{ marginBottom: 12 }}>
+        <View style={{ marginBottom: 6 }}>
           <FilterChips options={DANCE_STYLE_OPTIONS} selected={danceFilter} onSelect={setDanceFilter} />
+        </View>
+
+        {/* City filter */}
+        <View style={{ marginBottom: 12 }}>
+          <FilterChips options={JAPAN_CITIES} selected={cityFilter} onSelect={setCityFilter} />
         </View>
 
         {/* Selected date label */}
