@@ -116,6 +116,37 @@ export function extractCity(text: string): string | undefined {
   return undefined;
 }
 
+// Google Calendar (and other sources) embed HTML in DESCRIPTION — literal
+// <p>/<br> tags and entities that render as gibberish in the app. Convert to
+// plain text, but only when the input actually looks like markup: running
+// tag-stripping on genuine plain text would mangle strings like "I <3 salsa".
+export function htmlToPlainText(input: string): string {
+  if (!/<\/?[a-z][a-z0-9]*\b[^>]*>/i.test(input)) return input;
+
+  return (
+    input
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      // Paragraph ends become blank lines; list items become bullets.
+      .replace(/<\s*\/\s*p\s*>/gi, "\n\n")
+      .replace(/<\s*\/\s*(div|li|h[1-6]|tr)\s*>/gi, "\n")
+      .replace(/<\s*li\b[^>]*>/gi, "• ")
+      .replace(/<[^>]+>/g, "")
+      // Entity decoding — &amp; strictly last, or "&amp;lt;" would
+      // double-decode into a stray "<".
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#0*39;/g, "'")
+      .replace(/&apos;/gi, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&")
+      // Collapse the whitespace debris tag removal leaves behind.
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
+}
+
 // iCal LOCATION is a single string with no internal structure, but Google
 // Calendar formats it as "Venue Name, Address parts, Country" with mixed
 // commas (Western and Japanese fullwidth `、`).
@@ -214,7 +245,7 @@ export function parseIcal(
       continue;
     }
 
-    const description = (event.description ?? "").trim();
+    const description = htmlToPlainText((event.description ?? "").trim());
     const location = (event.location ?? "").trim();
     const url = (vevent.getFirstPropertyValue("url") as string | null) ?? null;
     const uid = event.uid ?? null;

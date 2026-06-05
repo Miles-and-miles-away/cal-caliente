@@ -5,6 +5,7 @@ import {
   classifyDanceStyle,
   classifyEventType,
   extractCity,
+  htmlToPlainText,
   parseIcal,
   parseLocation,
 } from "../server/_core/ical-parser";
@@ -277,5 +278,35 @@ describe("parseIcal", () => {
     expect(titles).not.toContain("Tokyo Salsa Social Night"); // June 15
     expect(titles).not.toContain("Generic Latin Night"); // June 25
     // Recurring class on Tuesdays may have one or two occurrences in this window.
+  });
+});
+
+describe("htmlToPlainText", () => {
+  it("converts Google Calendar HTML descriptions to readable plain text", () => {
+    // Trimmed from a real scraped event (ごきげんフェス6 at 日暮里サルー).
+    const html =
+      "<p>ごきげんワールドへようこそ！<br>ごきげんフェス6 開催決定！！</p>" +
+      "<p>笑って、つながって、ありのままで楽しもう！<br>即興劇（インプロ）！音楽！</p>" +
+      "<p>2026年6月6日（土）日暮里サルー<br>JR日暮里駅東口 徒歩2分</p>";
+    const text = htmlToPlainText(html);
+    expect(text).not.toMatch(/<[a-z/]/i);
+    expect(text).toContain("ごきげんワールドへようこそ！\nごきげんフェス6 開催決定！！");
+    expect(text).toContain("\n\n2026年6月6日（土）日暮里サルー\nJR日暮里駅東口 徒歩2分");
+  });
+
+  it("leaves plain-text descriptions untouched, including angle-bracket emoticons", () => {
+    const plain = "Salsa night! I <3 dancing & you should come. Doors 19:00 > 23:00";
+    expect(htmlToPlainText(plain)).toBe(plain);
+  });
+
+  it("decodes entities without double-decoding &amp;lt;", () => {
+    expect(htmlToPlainText("<p>Fish &amp; Chips &amp;lt;not a tag&amp;gt;</p>")).toBe(
+      "Fish & Chips &lt;not a tag&gt;",
+    );
+  });
+
+  it("renders list items as bullets and collapses blank-line runs", () => {
+    const html = "<ul><li>Salsa</li><li>Bachata</li></ul><p></p><p></p><p>Doors open 19:00</p>";
+    expect(htmlToPlainText(html)).toBe("• Salsa\n• Bachata\n\nDoors open 19:00");
   });
 });
