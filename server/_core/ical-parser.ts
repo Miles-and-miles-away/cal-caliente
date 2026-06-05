@@ -116,6 +116,32 @@ export function extractCity(text: string): string | undefined {
   return undefined;
 }
 
+// Google Calendar public iCal feeds carry no per-event web page, so events
+// from them would fall back to the raw .ics URL as their sourceUrl — which
+// browsers treat as "subscribe to calendar", making it awkward to verify an
+// event. The same calendar has a browser-viewable embed page that accepts a
+// day deep-link; point sourceUrl there instead.
+export function googleCalendarDayUrl(feedUrl: string, startAtIso: string): string | null {
+  const m = feedUrl.match(
+    /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\/public\/[^/]+\.ics$/i,
+  );
+  if (!m) return null;
+  const start = new Date(startAtIso);
+  if (Number.isNaN(start.getTime())) return null;
+  // Day boundary in JST — the calendars this app scrapes are Japan-local.
+  const jstDay = new Date(start.getTime() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+    .replace(/-/g, "");
+  // The feed URL may carry the calendar id raw (@) or percent-encoded (%40);
+  // normalize before re-encoding for the query string.
+  const calendarId = encodeURIComponent(decodeURIComponent(m[1]));
+  return (
+    `https://calendar.google.com/calendar/embed?src=${calendarId}` +
+    `&ctz=Asia%2FTokyo&mode=DAY&dates=${jstDay}%2F${jstDay}`
+  );
+}
+
 // Google Calendar (and other sources) embed HTML in DESCRIPTION — literal
 // <p>/<br> tags and entities that render as gibberish in the app. Convert to
 // plain text, but only when the input actually looks like markup: running

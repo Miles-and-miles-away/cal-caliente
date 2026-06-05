@@ -5,6 +5,7 @@ import {
   classifyDanceStyle,
   classifyEventType,
   extractCity,
+  googleCalendarDayUrl,
   htmlToPlainText,
   parseIcal,
   parseLocation,
@@ -308,5 +309,37 @@ describe("htmlToPlainText", () => {
   it("renders list items as bullets and collapses blank-line runs", () => {
     const html = "<ul><li>Salsa</li><li>Bachata</li></ul><p></p><p></p><p>Doors open 19:00</p>";
     expect(htmlToPlainText(html)).toBe("• Salsa\n• Bachata\n\nDoors open 19:00");
+  });
+});
+
+describe("googleCalendarDayUrl", () => {
+  const FEED = "https://calendar.google.com/calendar/ical/nippori.salud@gmail.com/public/basic.ics";
+
+  it("builds a browser-viewable day deep-link from a Google Calendar feed", () => {
+    const url = googleCalendarDayUrl(FEED, "2026-06-06T03:00:00.000Z");
+    expect(url).toBe(
+      "https://calendar.google.com/calendar/embed?src=nippori.salud%40gmail.com" +
+        "&ctz=Asia%2FTokyo&mode=DAY&dates=20260606%2F20260606",
+    );
+  });
+
+  it("uses the JST day, not the UTC day, at date boundaries", () => {
+    // 18:30 UTC on June 5 is 03:30 JST on June 6.
+    const url = googleCalendarDayUrl(FEED, "2026-06-05T18:30:00.000Z");
+    expect(url).toContain("dates=20260606");
+  });
+
+  it("normalizes already-percent-encoded calendar ids", () => {
+    const encoded = FEED.replace("@", "%40");
+    expect(googleCalendarDayUrl(encoded, "2026-06-06T03:00:00.000Z")).toContain(
+      "src=nippori.salud%40gmail.com",
+    );
+  });
+
+  it("returns null for non-Google feeds and invalid dates", () => {
+    expect(
+      googleCalendarDayUrl("https://www.meetup.com/x/events/ical", "2026-06-06T03:00:00.000Z"),
+    ).toBeNull();
+    expect(googleCalendarDayUrl(FEED, "not a date")).toBeNull();
   });
 });

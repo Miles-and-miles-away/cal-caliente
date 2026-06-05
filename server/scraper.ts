@@ -14,7 +14,7 @@
 
 import { lookup as dnsLookup } from "node:dns/promises";
 import { extractEventDetailFromHtml, extractEventsFromHtml } from "./_core/event-extractor";
-import { parseIcal } from "./_core/ical-parser";
+import { googleCalendarDayUrl, parseIcal } from "./_core/ical-parser";
 import {
   getActiveSources,
   addScrapeLog,
@@ -414,6 +414,13 @@ export class RssScraperAdapter implements ScraperAdapter {
 
       const content = await response.text();
       const events = parseIcal(content, { now: new Date() });
+      // Events without a per-event URL would fall back to the raw .ics feed
+      // as sourceUrl; substitute a browser-viewable calendar day link.
+      for (const ev of events) {
+        if (!ev.sourceUrl) {
+          ev.sourceUrl = googleCalendarDayUrl(sanitized, ev.startAt) ?? undefined;
+        }
+      }
       console.log(`[Scraper:iCal] Parsed ${events.length} events from ${sanitized}`);
       return events;
     } catch (error: any) {
