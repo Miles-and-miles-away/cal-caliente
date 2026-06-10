@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   Switch,
@@ -12,7 +13,9 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useAuth } from "@/hooks/use-auth";
 import { useFavorites } from "@/lib/favorites-context";
+import { startOAuthLogin } from "@/constants/oauth";
 import {
   JAPAN_CITIES,
   DISTANCE_OPTIONS_KM,
@@ -47,8 +50,27 @@ export default function PreferencesScreen() {
   const colors = useColors();
   const router = useRouter();
   const { count: favCount } = useFavorites();
+  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFS);
   const [saved, setSaved] = useState(false);
+
+  const handleSignIn = async () => {
+    try {
+      // On web this redirects; on native it opens the system browser and the
+      // OAuth callback deep-links back into app/oauth/callback.tsx.
+      await startOAuthLogin();
+    } catch (err) {
+      console.warn("Sign-in failed to start:", err);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.warn("Sign-out failed:", err);
+    }
+  };
 
   useEffect(() => {
     loadPreferences();
@@ -137,6 +159,70 @@ export default function PreferencesScreen() {
             <Text style={{ color: colors.success, fontSize: 12, marginTop: 4 }}>
               Settings saved automatically
             </Text>
+          )}
+        </View>
+
+        {/* Account */}
+        <View style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border, marginBottom: 8 }}>
+          {authLoading ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Checking sign-in…</Text>
+            </View>
+          ) : isAuthenticated ? (
+            <View style={{ gap: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <IconSymbol name="person.fill" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>
+                    {user?.name || user?.email || "Signed in"}
+                  </Text>
+                  {user?.email ? (
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{user.email}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <Pressable
+                onPress={handleSignOut}
+                accessibilityRole="button"
+                style={({ pressed }) => [{
+                  alignItems: "center",
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+              >
+                <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>Sign Out</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <IconSymbol name="person.fill" size={20} color={colors.muted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600" }}>Not signed in</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                    Sign in to add and manage event sources
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={handleSignIn}
+                accessibilityRole="button"
+                style={({ pressed }) => [{
+                  alignItems: "center",
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.85 : 1,
+                }]}
+              >
+                <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "700" }}>Sign In</Text>
+              </Pressable>
+            </View>
           )}
         </View>
 

@@ -13,6 +13,8 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useAuth } from "@/hooks/use-auth";
+import { startOAuthLogin } from "@/constants/oauth";
 import { trpc } from "@/lib/trpc";
 import {
   SOURCE_TYPE_LABELS,
@@ -27,6 +29,29 @@ export default function SitesScreen() {
   const colors = useColors();
   const router = useRouter();
   const utils = trpc.useUtils();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // sources.add/toggle/delete are protectedProcedure now. Surface a clear prompt
+  // instead of failing silently if a write is attempted without a session (e.g.
+  // the session expired while this screen was open).
+  const handleWriteError = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : "Something went wrong.";
+    const needsAuth = /login|unauthor/i.test(msg);
+    Alert.alert(
+      needsAuth ? "Sign in required" : "Action failed",
+      needsAuth
+        ? "Please sign in from the Settings tab to add or manage sources."
+        : msg,
+    );
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await startOAuthLogin();
+    } catch (err) {
+      console.warn("Sign-in failed to start:", err);
+    }
+  };
 
   const { data: sources, isLoading } = trpc.sources.list.useQuery();
   const addMutation = trpc.sources.add.useMutation({
@@ -37,12 +62,19 @@ export default function SitesScreen() {
       setNewUrl("");
       setNewType("html");
     },
+    onError: handleWriteError,
   });
   const toggleMutation = trpc.sources.toggle.useMutation({
     onSuccess: () => utils.sources.list.invalidate(),
+    onError: (err) => {
+      // Re-sync the Switch to server truth (the write didn't land), then explain.
+      utils.sources.list.invalidate();
+      handleWriteError(err);
+    },
   });
   const deleteMutation = trpc.sources.delete.useMutation({
     onSuccess: () => utils.sources.list.invalidate(),
+    onError: handleWriteError,
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -100,19 +132,41 @@ export default function SitesScreen() {
                 <IconSymbol name="arrow.left" size={22} color={colors.foreground} />
               </Pressable>
               <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "700" }}>Event Sources</Text>
-              <Pressable onPress={() => setShowAdd(!showAdd)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
-                <IconSymbol name={showAdd ? "xmark" : "plus"} size={22} color={colors.primary} />
-              </Pressable>
+              {isAuthenticated ? (
+                <Pressable onPress={() => setShowAdd(!showAdd)} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}>
+                  <IconSymbol name={showAdd ? "xmark" : "plus"} size={22} color={colors.primary} />
+                </Pressable>
+              ) : (
+                <View style={{ width: 30 }} />
+              )}
             </View>
 
-            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-              <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-                Add your dance school website, Facebook page, or Instagram account. The app will automatically check these sources for new events every hour.
-              </Text>
-            </View>
+            {!authLoading && !isAuthenticated ? (
+              <View style={{ marginHorizontal: 16, marginBottom: 14, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <IconSymbol name="person.fill" size={18} color={colors.primary} />
+                  <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600", flex: 1 }}>
+                    Sign in to add and manage your own event sources.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={handleSignIn}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [{ alignItems: "center", paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+                >
+                  <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Sign In</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+                  Add your dance school website, Facebook page, or Instagram account. The app will automatically check these sources for new events every hour.
+                </Text>
+              </View>
+            )}
 
             {/* Add form */}
-            {showAdd && (
+            {isAuthenticated && showAdd && (
               <View style={{ marginHorizontal: 16, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16 }}>
                 <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", marginBottom: 12 }}>Add New Source</Text>
 
@@ -218,10 +272,11 @@ export default function SitesScreen() {
                 <Switch
                   value={item.isActive}
                   onValueChange={(v: boolean) => toggleMutation.mutate({ id: item.id, isActive: v })}
+                  disabled={!isAuthenticated}
                   trackColor={{ false: colors.border, true: colors.primary + "80" }}
                   thumbColor={item.isActive ? colors.primary : colors.muted}
                 />
-                {item.isUserAdded && (
+                {isAuthenticated && item.isUserAdded && (
                   <Pressable
                     onPress={() => handleDelete(item.id, item.name)}
                     style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}
