@@ -23,6 +23,7 @@ import { FavoritesProvider } from "@/lib/favorites-context";
 import { NetworkProvider } from "@/lib/network-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineIndicator } from "@/components/offline-indicator";
+import { pruneSearchCaches } from "@/lib/cache";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -58,6 +59,11 @@ export default function RootLayout() {
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
+  }, []);
+
+  // Bound the per-filter search cache once per launch (see pruneSearchCaches).
+  useEffect(() => {
+    pruneSearchCaches().catch(() => {});
   }, []);
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {

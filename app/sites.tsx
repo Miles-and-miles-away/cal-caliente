@@ -29,7 +29,15 @@ export default function SitesScreen() {
   const colors = useColors();
   const router = useRouter();
   const utils = trpc.useUtils();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+
+  // Toggle/delete are owner-scoped on the server (addedByUserId === ctx.user.id,
+  // or admin). Mirror that in the UI so we don't present controls that will just
+  // 403 — default/seeded sources and other users' sources show no controls.
+  // Legacy user sources added before the ownership column have a null owner and
+  // so are read-only here too (manageable only by an admin via the API).
+  const canManageSource = (item: any) =>
+    isAuthenticated && user?.id != null && item?.addedByUserId === user.id;
 
   // sources.add/toggle/delete are protectedProcedure now. Surface a clear prompt
   // instead of failing silently if a write is attempted without a session (e.g.
@@ -272,11 +280,11 @@ export default function SitesScreen() {
                 <Switch
                   value={item.isActive}
                   onValueChange={(v: boolean) => toggleMutation.mutate({ id: item.id, isActive: v })}
-                  disabled={!isAuthenticated}
+                  disabled={!canManageSource(item)}
                   trackColor={{ false: colors.border, true: colors.primary + "80" }}
                   thumbColor={item.isActive ? colors.primary : colors.muted}
                 />
-                {isAuthenticated && item.isUserAdded && (
+                {canManageSource(item) && (
                   <Pressable
                     onPress={() => handleDelete(item.id, item.name)}
                     style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1, padding: 4 }]}

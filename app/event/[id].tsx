@@ -215,7 +215,9 @@ export default function EventDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>{formatFullDate(ev.startAt)}</Text>
                 <Text style={{ color: colors.muted, fontSize: 13, marginTop: 2 }}>
-                  {formatEventTime(ev.startAt)}{ev.endAt ? ` — ${formatEventTime(ev.endAt)}` : ""}
+                  {ev.isAllDay
+                    ? "All day"
+                    : `${formatEventTime(ev.startAt)}${ev.endAt ? ` — ${formatEventTime(ev.endAt)}` : ""}`}
                 </Text>
               </View>
             </View>

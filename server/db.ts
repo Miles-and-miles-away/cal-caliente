@@ -10,6 +10,7 @@ import {
   userPreferences,
   eventAttendance,
   type Event,
+  type EventSource,
   type InsertEvent,
   type InsertEventSource,
 } from "../drizzle/schema";
@@ -186,10 +187,29 @@ export async function listEvents(params: {
   const limit = Math.min(params.limit ?? API_DEFAULT_PAGE_SIZE, API_MAX_PAGE_SIZE);
   const offset = params.offset ?? 0;
 
+  // Project only the columns the list/map/calendar/card views actually read.
+  // The detail screen uses `events.get` (full row), so dropping the heavy text
+  // columns here (description, venueAddress, imageUrl, sourceUrl) trims the
+  // payload for queries that can return up to API_MAX_PAGE_SIZE rows.
   // Order by startAt + id so pagination is deterministic when two events share
   // a timestamp — otherwise an offset query can skip or repeat rows.
   return db
-    .select()
+    .select({
+      id: events.id,
+      title: events.title,
+      danceStyle: events.danceStyle,
+      eventType: events.eventType,
+      startAt: events.startAt,
+      endAt: events.endAt,
+      isAllDay: events.isAllDay,
+      venueName: events.venueName,
+      city: events.city,
+      nearestStation: events.nearestStation,
+      latitude: events.latitude,
+      longitude: events.longitude,
+      price: events.price,
+      isVerified: events.isVerified,
+    })
     .from(events)
     .where(and(...conditions))
     .orderBy(events.startAt, events.id)
@@ -233,14 +253,36 @@ export async function updateEventCoordinates(
     .where(eq(events.id, id));
 }
 
+// Columns a later merge must NOT overwrite. Deliberately narrow: the scrape is
+// the source of truth for event *content* (title, address, time, price,
+// classification, coords, …) — those still merge normally, latest non-empty
+// scrape wins. What we protect is only:
+//   • id / createdAt        — row identity + first-seen audit
+//   • canonicalKey/venueDateKey — the dedup MATCH keys themselves. Rewriting
+//     venueDateKey can collide with another row's UNIQUE value, throw, and
+//     silently drop the event (the real bug behind #7).
+//   • submittedByUserId     — who submitted it (abuse handling); a scrape has
+//     no such field and must never null it out.
+//   • isVerified            — so a re-scrape can't silently un-verify a row
+//     (forward-defense for an admin-verify flow).
+// `sourceId` is intentionally NOT here: when a real source lists an event we
+// previously only had as a submission, attributing it to that source is fine.
+const MERGE_IMMUTABLE_FIELDS = new Set<string>([
+  "id",
+  "createdAt",
+  "canonicalKey",
+  "venueDateKey",
+  "submittedByUserId",
+  "isVerified",
+]);
+
 // Merge incoming fields into an existing row, preferring incoming values when
 // they're non-empty and falling back to existing values otherwise. Picks the
 // "richer" data across re-runs and across sources.
 export function mergeEventFields(existing: Event, incoming: InsertEvent): Partial<InsertEvent> {
   const merged: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(incoming)) {
-    // Skip immutable identity fields and the dedup key — they're set once.
-    if (key === "id" || key === "createdAt" || key === "canonicalKey") continue;
+    if (MERGE_IMMUTABLE_FIELDS.has(key)) continue;
     const isMeaningful = value !== null && value !== undefined && value !== "";
     if (isMeaningful) {
       merged[key] = value;
@@ -294,6 +336,11 @@ async function findExistingEvent(
   return null;
 }
 
+// Outcome of an upsert, so the scraper can report genuinely-new rows ("added")
+// separately from dedup merges instead of counting every non-erroring upsert
+// as "added".
+export type UpsertOutcome = "inserted" | "merged" | "skipped";
+
 // Internal upsert that takes the db connection explicitly so it's directly
 // testable — the public `upsertEvent` just resolves the db and delegates here.
 // Exported so tests can drive the dedup / race-recovery logic with a mocked db
@@ -301,7 +348,7 @@ async function findExistingEvent(
 export async function upsertEventWithDb(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   event: InsertEvent,
-) {
+): Promise<UpsertOutcome> {
   const startAt = event.startAt instanceof Date
     ? event.startAt
     : new Date(event.startAt as string);
@@ -317,7 +364,7 @@ export async function upsertEventWithDb(
 
   if (existing) {
     await applyMerge(db, existing, eventWithKeys);
-    return;
+    return "merged";
   }
 
   // INSERT race fallback: with UNIQUE indexes on canonicalKey and
@@ -327,21 +374,23 @@ export async function upsertEventWithDb(
   // ordering-doesn't-matter merge.
   try {
     await db.insert(events).values(eventWithKeys);
+    return "inserted";
   } catch (err) {
     if (!isDuplicateKeyError(err)) throw err;
     const winner = await findExistingEvent(db, canonicalKey, venueDateKey);
     if (!winner) {
       // Lost the race but the row's already gone (deleted between the
       // duplicate-key error and our re-fetch). Bail; nothing to merge.
-      return;
+      return "skipped";
     }
     await applyMerge(db, winner, eventWithKeys);
+    return "merged";
   }
 }
 
-export async function upsertEvent(event: InsertEvent) {
+export async function upsertEvent(event: InsertEvent): Promise<UpsertOutcome> {
   const db = await getDb();
-  if (!db) return;
+  if (!db) return "skipped";
   return upsertEventWithDb(db, event);
 }
 
@@ -536,18 +585,65 @@ export async function addSource(source: InsertEventSource) {
   await db.insert(eventSources).values(source);
 }
 
-export async function toggleSource(id: number, isActive: boolean) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(eventSources).set({ isActive }).where(eq(eventSources.id, id));
+// Result of an authorization-scoped source mutation. The router maps these to
+// NOT_FOUND / FORBIDDEN / success so a signed-in user can't silently toggle the
+// default scraper sources or tamper with another user's sources.
+export type SourceMutationResult = "ok" | "not_found" | "forbidden";
+
+interface SourceActor {
+  userId: number;
+  isAdmin: boolean;
 }
 
-export async function deleteSource(id: number) {
+// Shared gate: load the source, decide whether `actor` may manage it. Admins
+// may manage any source; a normal user may manage only the ones they added
+// (addedByUserId === their id). Seeded/default sources have a null owner and so
+// are admin-only.
+async function authorizeSourceMutation(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  id: number,
+  actor: SourceActor,
+): Promise<{ result: SourceMutationResult; row?: EventSource }> {
+  const found = await db
+    .select()
+    .from(eventSources)
+    .where(eq(eventSources.id, id))
+    .limit(1);
+  if (found.length === 0) return { result: "not_found" };
+  const row = found[0];
+  if (actor.isAdmin) return { result: "ok", row };
+  if (row.addedByUserId != null && row.addedByUserId === actor.userId) {
+    return { result: "ok", row };
+  }
+  return { result: "forbidden", row };
+}
+
+export async function toggleSource(
+  id: number,
+  isActive: boolean,
+  actor: SourceActor,
+): Promise<SourceMutationResult> {
   const db = await getDb();
-  if (!db) return;
-  await db.delete(eventSources).where(
-    and(eq(eventSources.id, id), eq(eventSources.isUserAdded, true))
-  );
+  if (!db) return "not_found";
+  const auth = await authorizeSourceMutation(db, id, actor);
+  if (auth.result !== "ok") return auth.result;
+  await db.update(eventSources).set({ isActive }).where(eq(eventSources.id, id));
+  return "ok";
+}
+
+export async function deleteSource(
+  id: number,
+  actor: SourceActor,
+): Promise<SourceMutationResult> {
+  const db = await getDb();
+  if (!db) return "not_found";
+  const auth = await authorizeSourceMutation(db, id, actor);
+  if (auth.result !== "ok") return auth.result;
+  // Default sources (isUserAdded=false) are never deletable, even by an admin —
+  // dropping a seeded source would just have it re-seeded on next boot.
+  if (!auth.row?.isUserAdded) return "forbidden";
+  await db.delete(eventSources).where(eq(eventSources.id, id));
+  return "ok";
 }
 
 export async function updateSourceScrapedAt(id: number) {

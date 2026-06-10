@@ -3,7 +3,7 @@
  * Persisted to AsyncStorage under STORAGE_KEYS.FAVORITES.
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/shared/constants";
 
@@ -73,18 +73,19 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     [favoriteIds]
   );
 
-  return (
-    <FavoritesContext.Provider
-      value={{
-        favoriteIds,
-        toggleFavorite,
-        isFavorite,
-        count: favoriteIds.size,
-      }}
-    >
-      {children}
-    </FavoritesContext.Provider>
+  // Memoize so consumers (every EventCard) don't re-render on unrelated parent
+  // renders — only when the favorites set actually changes.
+  const value = useMemo(
+    () => ({
+      favoriteIds,
+      toggleFavorite,
+      isFavorite,
+      count: favoriteIds.size,
+    }),
+    [favoriteIds, toggleFavorite, isFavorite]
   );
+
+  return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
 }
 
 export function useFavorites() {

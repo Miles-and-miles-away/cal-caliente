@@ -23,7 +23,20 @@ export interface GeoPoint {
 }
 
 // null = looked up and not found (cached so bad addresses aren't re-queried).
+// Bounded so a long-running process that sees a wide spread of unique addresses
+// can't grow the map without limit; Map preserves insertion order, so we evict
+// the oldest entry once over capacity (simple FIFO — venues recur, so the hot
+// set stays cached in practice).
+const MAX_CACHE_ENTRIES = 5000;
 const cache = new Map<string, GeoPoint | null>();
+
+function cacheSet(query: string, value: GeoPoint | null): void {
+  cache.set(query, value);
+  if (cache.size > MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+}
 
 /** Test hook — the cache is module-global state. */
 export function clearGeocodeCache(): void {
@@ -78,7 +91,7 @@ export async function geocodeAddress(
       Array.isArray(coords) && Number.isFinite(coords[0]) && Number.isFinite(coords[1])
         ? { latitude: coords[1], longitude: coords[0] }
         : null;
-    cache.set(query, result);
+    cacheSet(query, result);
     return result;
   } catch {
     return null;

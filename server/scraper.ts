@@ -44,6 +44,8 @@ export interface ScrapedEvent {
   eventType?: string;
   startAt: string;
   endAt?: string;
+  /** All-day / VALUE=DATE event (multi-day festivals etc.). */
+  isAllDay?: boolean;
   venueName?: string;
   venueAddress?: string;
   city?: string;
@@ -460,6 +462,8 @@ export async function scrapeSource(source: {
   const startTime = Date.now();
   let eventsFound = 0;
   let eventsAdded = 0;
+  let eventsMerged = 0;
+  let eventsFailed = 0;
 
   try {
     const scrapedEvents = await adapter.scrape(source.url, source.name);
@@ -479,6 +483,7 @@ export async function scrapeSource(source: {
           eventType: (ev.eventType ?? null) as InsertEvent["eventType"],
           startAt: new Date(ev.startAt),
           endAt: ev.endAt ? new Date(ev.endAt) : null,
+          isAllDay: ev.isAllDay ?? false,
           venueName: ev.venueName ?? null,
           venueAddress: ev.venueAddress ?? null,
           city: ev.city ?? null,
@@ -491,21 +496,33 @@ export async function scrapeSource(source: {
           price: ev.price ?? null,
           organizer: ev.organizer ?? null,
         };
-        await upsertEvent(insertEvent);
-        eventsAdded++;
+        // Count genuinely-new rows as "added"; merges into an existing row are
+        // tracked separately so the log doesn't report every dedup hit as new.
+        const outcome = await upsertEvent(insertEvent);
+        if (outcome === "inserted") eventsAdded++;
+        else if (outcome === "merged") eventsMerged++;
       } catch (err: any) {
+        eventsFailed++;
         console.warn(`[Scraper] Failed to insert event "${ev.title}":`, err.message);
       }
     }
 
     await updateSourceScrapedAt(source.id);
     await addScrapeLog({
+      // "partial" only when something actually failed to persist — a clean run
+      // where every event was a known duplicate is still a success.
       sourceId: source.id,
-      status: eventsAdded === eventsFound ? "success" : "partial",
+      status: eventsFailed > 0 ? "partial" : "success",
       eventsFound,
       eventsAdded,
       durationMs: Date.now() - startTime,
     });
+    if (eventsMerged > 0 || eventsFailed > 0) {
+      console.log(
+        `[Scraper] ${source.name}: ${eventsAdded} new, ${eventsMerged} merged, ` +
+          `${eventsFailed} failed of ${eventsFound} found`,
+      );
+    }
   } catch (error: any) {
     await addScrapeLog({
       sourceId: source.id,

@@ -92,7 +92,7 @@ END:VEVENT
 BEGIN:VEVENT
 UID:all-day-event@test
 SUMMARY:Tokyo Salsa Festival
-DESCRIPTION:All-day VALUE=DATE event — should be skipped\, no time means no useful start
+DESCRIPTION:All-day VALUE=DATE event — ingested as an all-day row anchored to JST midnight
 LOCATION:Tokyo
 DTSTART;VALUE=DATE:20260624
 DTEND;VALUE=DATE:20260625

@@ -19,6 +19,7 @@ interface EventCardProps {
     danceStyle?: string | null;
     eventType?: string | null;
     startAt: string | Date;
+    isAllDay?: boolean | null;
     venueName?: string | null;
     city?: string | null;
     nearestStation?: string | null;
@@ -146,7 +147,7 @@ export function EventCard({ event, compact = false, attendance }: EventCardProps
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
             <IconSymbol name="calendar" size={13} color={colors.muted} />
             <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 6 }}>
-              {formatEventDate(dateStr)} · {formatEventTime(dateStr)}
+              {formatEventDate(dateStr)} · {event.isAllDay ? "All day" : formatEventTime(dateStr)}
             </Text>
           </View>
 

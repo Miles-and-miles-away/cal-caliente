@@ -101,6 +101,41 @@ export async function clearEventCaches(): Promise<boolean> {
 }
 
 /**
+ * Cap the number of per-filter search-result cache entries. Discover keys its
+ * cache by a hash of the full query params (`@salsa_search_<hash>`), so every
+ * distinct filter+search combination a user tries leaves a permanent entry.
+ * Keep only the `max` most-recently-written; evict the rest. Cheap enough to
+ * run once per launch.
+ */
+export const MAX_SEARCH_CACHE_ENTRIES = 30;
+
+export async function pruneSearchCaches(max = MAX_SEARCH_CACHE_ENTRIES): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const searchKeys = keys.filter((k) => k.startsWith("@salsa_search_"));
+    if (searchKeys.length <= max) return;
+
+    const entries = await Promise.all(
+      searchKeys.map(async (k) => {
+        let timestamp = 0;
+        try {
+          const raw = await AsyncStorage.getItem(k);
+          timestamp = raw ? JSON.parse(raw).timestamp ?? 0 : 0;
+        } catch {
+          // Unparseable entry — treat as oldest so it's evicted first.
+        }
+        return { key: k, timestamp };
+      })
+    );
+    entries.sort((a, b) => b.timestamp - a.timestamp); // newest first
+    const toRemove = entries.slice(max).map((e) => e.key);
+    if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove);
+  } catch (error) {
+    console.warn("[Cache] Failed to prune search caches:", error);
+  }
+}
+
+/**
  * Get storage usage estimate (for debugging).
  */
 export async function getStorageUsage(): Promise<{

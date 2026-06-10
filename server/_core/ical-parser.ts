@@ -18,17 +18,25 @@ import type { DanceStyle, EventType } from "../../shared/constants";
 // Known data-loss policies (intentional):
 //
 //   • Events with STATUS:CANCELLED are dropped.
-//   • All-day events (VALUE=DATE on DTSTART) are dropped — including legitimate
-//     multi-day festivals published as VALUE=DATE/VALUE=DATE. We don't guess at
-//     a default time; an organiser publishing a festival in iCal should include
-//     a DTSTART with a time component. If we start losing real festivals, the
-//     fix is to parse VALUE=DATE intervals into a single all-day event row,
-//     not to default to an arbitrary evening time.
+//   • All-day events (VALUE=DATE on DTSTART) — multi-day festivals etc. — are
+//     anchored to the JST day boundary (00:00+09:00) and flagged isAllDay so
+//     the UI renders "All day". Recurring all-day events ingest only their
+//     first occurrence (RRULE-on-DATE expansion isn't implemented).
 //   • RRULE expansion has a fixed safety counter (5000 iterations). Pattern
 //     denser than ~daily over many years would trip it; we log a warning when
 //     it does, but the missing occurrences are silent in the DB.
 
 const DEFAULT_WINDOW_DAYS = 60;
+
+// All-day (VALUE=DATE) iCal entries carry a calendar date but no time. Anchor
+// them to the JST day boundary (00:00+09:00) so they sort and store like any
+// other event; the `isAllDay` flag tells the UI to render "All day" rather than
+// a clock time. Built from the ICAL.Time Y/M/D fields directly (not toJSDate,
+// which would apply the runner's local offset to a floating date).
+function jstMidnightIso(t: { year: number; month: number; day: number }): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${t.year}-${pad(t.month)}-${pad(t.day)}T00:00:00+09:00`;
+}
 
 // Style probe order = community frequency. First match wins, both in title
 // and (as fallback) in description. Title is searched first so a "Salsa Night
@@ -260,17 +268,6 @@ export function parseIcal(
     const summary = (event.summary ?? "").trim().slice(0, 500);
     if (!summary) continue;
 
-    // All-day events (VALUE=DATE) have no specific time. See header comment
-    // for the trade-off — `warn` not `log` because this is a documented but
-    // non-trivial data-loss policy worth surfacing in production logs.
-    if (event.startDate?.isDate) {
-      console.warn(
-        `[Scraper:iCal] Skipping all-day event "${(event.summary ?? "").trim()}" — ` +
-          `VALUE=DATE entries are dropped (no start time).`,
-      );
-      continue;
-    }
-
     const description = htmlToPlainText((event.description ?? "").trim());
     const location = (event.location ?? "").trim();
     const url = (vevent.getFirstPropertyValue("url") as string | null) ?? null;
@@ -279,6 +276,43 @@ export function parseIcal(
     const danceStyle = classifyDanceStyle(summary, description);
     const eventType = classifyEventType(summary, description);
     const loc = parseLocation(location);
+
+    // All-day events (VALUE=DATE) — multi-day festivals etc. Anchor to JST
+    // midnight and keep them (previously dropped). DTEND on a VALUE=DATE event
+    // is exclusive (the day after the last day); we keep it as the endAt
+    // boundary and include the event if it overlaps the window at all.
+    if (event.startDate?.isDate) {
+      if (event.isRecurring()) {
+        // Recurring all-day events are rare in these feeds and would need
+        // RRULE-on-DATE expansion; ingest the first occurrence and flag it.
+        console.warn(
+          `[Scraper:iCal] All-day recurring event "${summary}" — ingesting only the first occurrence.`,
+        );
+      }
+      const startAtIso = jstMidnightIso(event.startDate);
+      const startMs = new Date(startAtIso).getTime();
+      const endDate = event.endDate;
+      const endAtIso = endDate?.isDate ? jstMidnightIso(endDate) : undefined;
+      const endMs = endAtIso ? new Date(endAtIso).getTime() : startMs;
+      // Overlap test so a festival that started before "now" but runs into the
+      // window still shows.
+      if (startMs > windowEnd || endMs < windowStart) continue;
+      events.push({
+        externalId: uid ?? undefined,
+        title: summary,
+        description: description || undefined,
+        danceStyle,
+        eventType: eventType ?? undefined,
+        startAt: startAtIso,
+        endAt: endAtIso,
+        isAllDay: true,
+        venueName: loc.venueName,
+        venueAddress: loc.venueAddress,
+        city: loc.city,
+        sourceUrl: isSafeUrl(url) ? url : undefined,
+      });
+      continue;
+    }
 
     // Recurring events: expand into concrete occurrences inside the window.
     // Non-recurring: just the single instance, if it falls in the window.

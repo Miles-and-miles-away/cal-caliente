@@ -49,12 +49,17 @@ export function getSessionCookieOptions(
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const domain = getParentDomain(hostname);
+  const secure = isSecureRequest(req);
 
   return {
     domain,
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // Cross-subdomain web (3000-xxx ↔ 8081-xxx) needs SameSite=None, which
+    // browsers only honor together with Secure. On a plain-http localhost dev
+    // server `secure` is false, and a None+insecure cookie is silently dropped
+    // by Chrome — so fall back to Lax there (same-site on localhost anyway).
+    sameSite: secure ? "none" : "lax",
+    secure,
   };
 }

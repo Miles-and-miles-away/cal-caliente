@@ -445,6 +445,7 @@ describe("sources.add", () => {
       sourceType: "html",
       isUserAdded: true,
       isActive: true,
+      addedByUserId: 1,
     });
   });
 
@@ -506,18 +507,32 @@ describe("sources.add", () => {
 });
 
 describe("sources.toggle / sources.delete", () => {
-  it("toggle forwards id and isActive", async () => {
-    mockToggleSource.mockResolvedValue(undefined);
+  it("toggle forwards id, isActive, and the owner-scoped actor", async () => {
+    mockToggleSource.mockResolvedValue("ok");
     const caller = appRouter.createCaller(makeAuthedCtx());
     await caller.sources.toggle({ id: 7, isActive: false });
-    expect(mockToggleSource).toHaveBeenCalledWith(7, false);
+    expect(mockToggleSource).toHaveBeenCalledWith(7, false, { userId: 1, isAdmin: false });
   });
 
-  it("delete forwards id", async () => {
-    mockDeleteSource.mockResolvedValue(undefined);
+  it("delete forwards id and the owner-scoped actor", async () => {
+    mockDeleteSource.mockResolvedValue("ok");
     const caller = appRouter.createCaller(makeAuthedCtx());
     await caller.sources.delete({ id: 9 });
-    expect(mockDeleteSource).toHaveBeenCalledWith(9);
+    expect(mockDeleteSource).toHaveBeenCalledWith(9, { userId: 1, isAdmin: false });
+  });
+
+  it("maps a forbidden source mutation to FORBIDDEN", async () => {
+    mockToggleSource.mockResolvedValue("forbidden");
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(caller.sources.toggle({ id: 7, isActive: false })).rejects.toThrow(
+      /can only manage sources you added/i,
+    );
+  });
+
+  it("maps a missing source to NOT_FOUND", async () => {
+    mockDeleteSource.mockResolvedValue("not_found");
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(caller.sources.delete({ id: 999 })).rejects.toThrow(/not found/i);
   });
 
   it("toggle rejects non-positive id", async () => {

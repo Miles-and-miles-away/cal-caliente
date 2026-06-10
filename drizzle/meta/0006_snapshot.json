@@ -138,6 +138,13 @@
           "autoincrement": false,
           "default": false
         },
+        "addedByUserId": {
+          "name": "addedByUserId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "lastScrapedAt": {
           "name": "lastScrapedAt",
           "type": "timestamp",
@@ -246,6 +253,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "isAllDay": {
+          "name": "isAllDay",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "venueName": {
           "name": "venueName",
@@ -379,6 +394,14 @@
             "venueDateKey"
           ],
           "isUnique": true
+        },
+        "events_cancelled_start_idx": {
+          "name": "events_cancelled_start_idx",
+          "columns": [
+            "isCancelled",
+            "startAt"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {},

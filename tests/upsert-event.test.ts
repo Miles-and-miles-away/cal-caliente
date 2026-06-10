@@ -54,6 +54,7 @@ function makeRow(overrides: Partial<Event> = {}): Event {
     eventType: "social",
     startAt: new Date("2026-06-15T19:00:00Z"),
     endAt: new Date("2026-06-15T22:00:00Z"),
+    isAllDay: false,
     venueName: "Club Salud",
     venueAddress: "Tokyo address",
     city: "Tokyo",

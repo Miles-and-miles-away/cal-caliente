@@ -10,4 +10,7 @@ CREATE TABLE `event_attendance` (
 );
 --> statement-breakpoint
 ALTER TABLE `events` ADD `submittedByUserId` int;--> statement-breakpoint
-CREATE INDEX `event_attendance_event_idx` ON `event_attendance` (`eventId`);
+CREATE INDEX `event_attendance_event_idx` ON `event_attendance` (`eventId`);--> statement-breakpoint
+ALTER TABLE `event_sources` ADD `addedByUserId` int;--> statement-breakpoint
+ALTER TABLE `events` ADD `isAllDay` boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX `events_cancelled_start_idx` ON `events` (`isCancelled`,`startAt`);

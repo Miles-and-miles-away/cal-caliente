@@ -250,10 +250,15 @@ describe("parseIcal", () => {
     expect(titles).not.toContain("Cancelled Salsa Social");
   });
 
-  it("skips all-day events (VALUE=DATE) — they have no useful start time", () => {
+  it("ingests all-day events (VALUE=DATE), anchored to JST midnight and flagged isAllDay", () => {
     const events = parseIcal(fixture, { now: NOW });
-    const titles = events.map((e) => e.title);
-    expect(titles).not.toContain("Tokyo Salsa Festival");
+    const festival = events.find((e) => e.title === "Tokyo Salsa Festival");
+    expect(festival).toBeDefined();
+    expect(festival!.isAllDay).toBe(true);
+    // DTSTART;VALUE=DATE:20260624 → JST midnight of that day.
+    expect(festival!.startAt).toBe("2026-06-24T00:00:00+09:00");
+    // DTEND;VALUE=DATE:20260625 (exclusive end) carried through as endAt.
+    expect(festival!.endAt).toBe("2026-06-25T00:00:00+09:00");
   });
 
   it("populates eventType for iCal events when title/description signals one", () => {

@@ -1,4 +1,6 @@
 import { boolean, decimal, index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+// NOTE: after editing this file, regenerate + apply the migration:
+//   pnpm db:push   (drizzle-kit generate && drizzle-kit migrate)
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
@@ -41,6 +43,11 @@ export const events = mysqlTable(
     ]),
     startAt: timestamp("startAt").notNull(),
     endAt: timestamp("endAt"),
+    // All-day / VALUE=DATE iCal events (multi-day festivals etc.). When true,
+    // `startAt` is the JST day boundary (00:00+09:00) and the UI renders
+    // "All day" instead of a clock time. NULL time would lose ordering, so we
+    // anchor to midnight rather than leaving it open.
+    isAllDay: boolean("isAllDay").default(false).notNull(),
     venueName: varchar("venueName", { length: 500 }),
     venueAddress: text("venueAddress"),
     city: varchar("city", { length: 100 }),
@@ -69,6 +76,11 @@ export const events = mysqlTable(
     // a recognizable canonical/venue key still coexist.
     canonicalKeyIdx: uniqueIndex("events_canonical_key_idx").on(table.canonicalKey),
     venueDateKeyIdx: uniqueIndex("events_venue_date_key_idx").on(table.venueDateKey),
+    // Backs the hot `listEvents` query: filter on isCancelled + a startAt range,
+    // ordered by startAt. Without this every calendar/discover/map load is a
+    // full table scan + filesort. Leading isCancelled (always = false in the
+    // filter) keeps the range scan on startAt tight.
+    listIdx: index("events_cancelled_start_idx").on(table.isCancelled, table.startAt),
   }),
 );
 
@@ -84,6 +96,10 @@ export const eventSources = mysqlTable("event_sources", {
   region: varchar("region", { length: 100 }).default("japan"),
   isActive: boolean("isActive").default(true).notNull(),
   isUserAdded: boolean("isUserAdded").default(false).notNull(),
+  // The user who added this source (null for seeded/default sources). Toggle
+  // and delete are scoped to the owner (or an admin) so a signed-in user can't
+  // disable the default scraper sources or tamper with another user's sources.
+  addedByUserId: int("addedByUserId"),
   lastScrapedAt: timestamp("lastScrapedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

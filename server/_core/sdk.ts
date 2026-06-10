@@ -18,6 +18,12 @@ import type {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
+// How stale `lastSignedIn` must be before we bother rewriting it. createContext
+// authenticates EVERY tRPC request (including public queries like events.list),
+// so an unconditional update here is a DB write on the hot read path. Refreshing
+// at most hourly keeps "last seen" useful without write-amplifying every call.
+const LAST_SIGNED_IN_REFRESH_MS = 60 * 60 * 1000;
+
 export type SessionPayload = {
   openId: string;
   appId: string;
@@ -39,7 +45,34 @@ class OAuthService {
   }
 
   private decodeState(state: string): string {
-    const redirectUri = atob(state);
+    let decoded: string;
+    try {
+      decoded = Buffer.from(state, "base64").toString("utf-8");
+    } catch {
+      throw new Error("Invalid OAuth state encoding");
+    }
+    // New format: base64(JSON{ u: redirectUri, n: nonce }). Legacy format:
+    // base64(redirectUri) directly — fall back so logins started by an older
+    // client still complete during a rollout.
+    let redirectUri = decoded;
+    try {
+      const parsed = JSON.parse(decoded);
+      if (parsed && typeof parsed.u === "string") redirectUri = parsed.u;
+    } catch {
+      // legacy plain-redirectUri state — use `decoded` as-is
+    }
+    // Defense-in-depth: this value is sent to the OAuth token exchange as the
+    // redirectUri. Bound it and require it to parse as a URL so a crafted state
+    // can't smuggle arbitrary content into the exchange.
+    if (!redirectUri || redirectUri.length > 2048) {
+      throw new Error("Invalid OAuth state redirectUri");
+    }
+    try {
+      // eslint-disable-next-line no-new
+      new URL(redirectUri);
+    } catch {
+      throw new Error("OAuth state redirectUri is not a valid URL");
+    }
     return redirectUri;
   }
 
@@ -198,6 +231,13 @@ class SDKServer {
         return null;
       }
 
+      // Bind the session to this app: a token signed with the same secret but
+      // for a different appId must not be accepted here.
+      if (appId !== ENV.appId) {
+        console.warn("[Auth] Session appId does not match this app");
+        return null;
+      }
+
       return {
         openId,
         appId,
@@ -273,10 +313,14 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    // Only refresh lastSignedIn when it's actually stale — see the constant.
+    const lastSignedInMs = user.lastSignedIn ? new Date(user.lastSignedIn).getTime() : 0;
+    if (signedInAt.getTime() - lastSignedInMs > LAST_SIGNED_IN_REFRESH_MS) {
+      await db.upsertUser({
+        openId: user.openId,
+        lastSignedIn: signedInAt,
+      });
+    }
 
     return user;
   }

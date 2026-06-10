@@ -1,6 +1,7 @@
 import { ThemedView } from "@/components/themed-view";
 import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
+import { verifyOAuthStateNonce } from "@/constants/oauth";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -23,9 +24,9 @@ export default function OAuthCallback() {
     const handleCallback = async () => {
       console.log("[OAuth] Callback handler triggered");
       console.log("[OAuth] Params received:", {
-        code: params.code,
-        state: params.state,
-        error: params.error,
+        code: params.code ? "present" : "missing",
+        state: params.state ? "present" : "missing",
+        error: params.error ?? "none",
         sessionToken: params.sessionToken ? "present" : "missing",
         user: params.user ? "present" : "missing",
       });
@@ -53,7 +54,7 @@ export default function OAuthCallback() {
                 lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
               };
               await Auth.setUserInfo(userInfo);
-              console.log("[OAuth] User info stored:", userInfo);
+              console.log("[OAuth] User info stored");
             } catch (err) {
               console.error("[OAuth] Failed to parse user data:", err);
             }
@@ -119,8 +120,8 @@ export default function OAuthCallback() {
             state = urlObj.searchParams.get("state");
             sessionToken = urlObj.searchParams.get("sessionToken");
             console.log("[OAuth] Extracted from URL:", {
-              code: code?.substring(0, 20) + "...",
-              state: state?.substring(0, 20) + "...",
+              code: code ? "present" : "missing",
+              state: state ? "present" : "missing",
               sessionToken: sessionToken ? "present" : "missing",
             });
           } catch (e) {
@@ -135,8 +136,8 @@ export default function OAuthCallback() {
                 if (key === "sessionToken") sessionToken = decodeURIComponent(value);
               });
               console.log("[OAuth] Extracted from regex:", {
-                code: code?.substring(0, 20) + "...",
-                state: state?.substring(0, 20) + "...",
+                code: code ? "present" : "missing",
+                state: state ? "present" : "missing",
                 sessionToken: sessionToken ? "present" : "missing",
               });
             }
@@ -175,11 +176,18 @@ export default function OAuthCallback() {
           return;
         }
 
+        // Anti-CSRF: confirm this callback corresponds to a login we started
+        // (the state carries a nonce we stashed locally). No-ops safely if the
+        // nonce couldn't be persisted at login time.
+        const stateValid = await verifyOAuthStateNonce(state);
+        if (!stateValid) {
+          console.warn("[OAuth] State nonce mismatch — rejecting callback");
+          setStatus("error");
+          setErrorMessage("This sign-in link didn't match a login you started. Please try again.");
+          return;
+        }
+
         // Exchange code for session token
-        console.log("[OAuth] Exchanging code for session token...", {
-          code: code.substring(0, 20) + "...",
-          state: state.substring(0, 20) + "...",
-        });
         const result = await Api.exchangeOAuthCode(code, state);
         console.log("[OAuth] Exchange result:", {
           hasSessionToken: !!result.sessionToken,
@@ -194,7 +202,7 @@ export default function OAuthCallback() {
 
           // Store user info if available
           if (result.user) {
-            console.log("[OAuth] User data received:", result.user);
+            console.log("[OAuth] User data received");
             const userInfo: Auth.User = {
               id: result.user.id,
               openId: result.user.openId,

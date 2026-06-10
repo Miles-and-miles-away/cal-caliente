@@ -19,6 +19,7 @@ import {
   getEventAttendance,
   setEventAttendance,
   getEventAttendanceCounts,
+  type SourceMutationResult,
 } from "./db";
 import { storagePut } from "./storage";
 import {
@@ -182,6 +183,19 @@ const preferencesUpsertInput = z
   .partial()
   .strict();
 
+// Map a db-layer source-mutation result to a tRPC error (or pass through on
+// success). Keeps the ownership/existence decision in the db layer.
+function assertSourceMutation(result: SourceMutationResult): void {
+  if (result === "ok") return;
+  if (result === "not_found") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Source not found." });
+  }
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: "You can only manage sources you added.",
+  });
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -300,30 +314,40 @@ export const appRouter = router({
       }),
   }),
 
-  // `list` is public (read-only). The mutations are gated: now that users can
-  // authenticate (OAuth via the Manus SDK), registering/toggling/deleting a
-  // source requires a signed-in user. This closes the unauthenticated-write hole
-  // the old TODO(auth) marker tracked.
+  // `list` is public (read-only). The mutations are gated to a signed-in user
+  // AND scoped to ownership: a user may toggle/delete only the sources they
+  // added (addedByUserId === ctx.user.id); admins may manage any. This stops a
+  // signed-in user from disabling the default scraper sources (denial of
+  // discovery for everyone) or tampering with another user's sources.
   sources: router({
     list: publicProcedure.query(async () => {
       return listSources();
     }),
-    add: protectedProcedure.input(sourceAddInput).mutation(async ({ input }) => {
+    add: protectedProcedure.input(sourceAddInput).mutation(async ({ ctx, input }) => {
       await addSource({
         name: input.name,
         url: input.url,
         sourceType: input.sourceType,
         isUserAdded: true,
         isActive: true,
+        addedByUserId: ctx.user.id,
       });
       return { success: true };
     }),
-    toggle: protectedProcedure.input(sourceToggleInput).mutation(async ({ input }) => {
-      await toggleSource(input.id, input.isActive);
+    toggle: protectedProcedure.input(sourceToggleInput).mutation(async ({ ctx, input }) => {
+      const result = await toggleSource(input.id, input.isActive, {
+        userId: ctx.user.id,
+        isAdmin: ctx.user.role === "admin",
+      });
+      assertSourceMutation(result);
       return { success: true };
     }),
-    delete: protectedProcedure.input(sourceDeleteInput).mutation(async ({ input }) => {
-      await deleteSource(input.id);
+    delete: protectedProcedure.input(sourceDeleteInput).mutation(async ({ ctx, input }) => {
+      const result = await deleteSource(input.id, {
+        userId: ctx.user.id,
+        isAdmin: ctx.user.role === "admin",
+      });
+      assertSourceMutation(result);
       return { success: true };
     }),
   }),
