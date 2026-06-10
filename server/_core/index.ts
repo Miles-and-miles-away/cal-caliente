@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { corsMiddleware } from "./cors";
 import { trpcRateLimit } from "./rate-limit";
+import { validateEnv } from "./env";
 import { getDb } from "../db";
 import { startScheduler } from "../scraper";
 import { sql } from "drizzle-orm";
@@ -87,6 +88,10 @@ async function seedDatabase() {
 // ─── Server Startup ──────────────────────────────────────────────────────────
 
 async function startServer() {
+  // Fail fast on misconfiguration: throws in production if a required env var is
+  // missing, warns in development. Must run before anything touches the DB/OAuth.
+  validateEnv();
+
   const app = express();
   const server = createServer(app);
 

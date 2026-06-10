@@ -64,7 +64,10 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
+    // No runtime permissions requested yet. POST_NOTIFICATIONS comes back when
+    // push notifications are actually wired (the Settings "New Event Alerts"
+    // toggle is "coming soon" until then). Don't declare unused permissions.
+    permissions: [],
     intentFilters: [
       {
         action: "VIEW",
@@ -86,19 +89,12 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
-    [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
-      },
-    ],
+    // NOTE: the `expo-audio` (microphone) and `expo-video` (background-audio /
+    // PiP) config plugins were removed — nothing uses audio or video yet, and
+    // declaring those capabilities/permissions while unused is an App Store
+    // rejection risk. Re-add them (with usage strings) when the Phase-2 voice
+    // event-submission flow actually lands. The npm deps are kept so re-adding
+    // is a one-line config change.
     [
       "expo-splash-screen",
       {

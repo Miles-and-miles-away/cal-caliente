@@ -54,7 +54,25 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
 
 ---
 
-## 🔮 Later (real work, less urgent)
+### Phase 2: User-submitted events (the screenshot/voice flow)
+- [ ] Submit-event UI (image, paste, voice) → server LLM extracts → user confirms → save.
+- [ ] On-device LLM (Apple Foundation Models / Gemini Nano via AICore) for capable devices; cloud fallback otherwise.
+- [ ] iOS/Android share extension so "share to Cal Caliente" works from FB/IG/LINE.
+
+### Phase 3: Engagement features (later still)
+- [ ] "Interested" / "Going" buttons on events.
+- [ ] Event recommendations based on saved-favourites pattern.
+
+### Phase 4: Resilience finishing touches
+- [ ] Hand-test failure scenarios (no network, server down, DB crash). Listed in `docs/resilience-audit.md` but never actually exercised.
+- [ ] Re-read `docs/api.md` after the next pass — drifted again with v1 changes.
+
+## Possible future additions:
+### Translation (optional, not blocking)
+- [ ] Bilingual descriptions (EN ↔ JA). Add `descriptionEn` / `descriptionJa` / `descriptionLang` / `descriptionHash` columns to `events`. Detect source language via CJK-character ratio; translate via the same forge LLM with a glossary that preserves dance terminology verbatim (Salsa, Bachata, On1/On2, Cuban, Sensual, etc.). Cache by `descriptionHash` so re-scrapes don't re-translate unchanged events.
+  - **Cost:** ~$0.50 one-time backfill, ~$0.15/month ongoing. Single forge call per new/edited event.
+  - **Effort:** ~2-3 hours including schema migration + UI fallback chain (`descriptionEn` → `description` → `descriptionJa`).
+  - **Why optional:** ship the single-language original first. Most of the audience can read at least one of the two; translation is improvement, not a blocker.
 
 ### Source expansion (only if iCal + SalsaVida + LatinDanceCalendar feels thin)
 - [ ] **Peatix** — Japanese ticketing site, dominant for paid events. Has a public API. Not yet investigated.
@@ -62,25 +80,6 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
 - [ ] **Eventbrite** — public REST API; used by larger congresses.
 - [ ] **Individual dance school websites** — same `HtmlScraperAdapter`, just more URLs. Cheapest expansion path.
 - [ ] **BMJ Festival ICS** — already noted as having `.ics` references but not yet investigated.
-
-### Phase 2: User-submitted events (the screenshot/voice flow)
-- [ ] Submit-event UI (image, paste, voice) → server LLM extracts → user confirms → save.
-- [ ] On-device LLM (Apple Foundation Models / Gemini Nano via AICore) for capable devices; cloud fallback otherwise.
-- [ ] iOS/Android share extension so "share to Cal Caliente" works from FB/IG/LINE.
-
-### Translation (optional, not blocking)
-- [ ] Bilingual descriptions (EN ↔ JA). Add `descriptionEn` / `descriptionJa` / `descriptionLang` / `descriptionHash` columns to `events`. Detect source language via CJK-character ratio; translate via the same forge LLM with a glossary that preserves dance terminology verbatim (Salsa, Bachata, On1/On2, Cuban, Sensual, etc.). Cache by `descriptionHash` so re-scrapes don't re-translate unchanged events.
-  - **Cost:** ~$0.50 one-time backfill, ~$0.15/month ongoing. Single forge call per new/edited event.
-  - **Effort:** ~2-3 hours including schema migration + UI fallback chain (`descriptionEn` → `description` → `descriptionJa`).
-  - **Why optional:** ship the single-language original first. Most of the audience can read at least one of the two; translation is improvement, not a blocker.
-
-### Phase 3: Engagement features (later still)
-- [ ] "Interested" / "Going" buttons on events.
-- [ ] Event recommendations based on saved-favourites pattern.
-
-### Resilience finishing touches
-- [ ] Hand-test failure scenarios (no network, server down, DB crash). Listed in `docs/resilience-audit.md` but never actually exercised.
-- [ ] Re-read `docs/api.md` after the next pass — drifted again with v1 changes.
 
 ---
 

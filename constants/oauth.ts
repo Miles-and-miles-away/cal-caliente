@@ -102,6 +102,18 @@ export const getLoginUrl = () => {
  * @returns Always null, the callback is handled via deep link.
  */
 export async function startOAuthLogin(): Promise<string | null> {
+  // EXPO_PUBLIC_* are inlined at build time. If this bundle was built without the
+  // OAuth portal/app-id (the classic Manus-vs-standalone divergence), bail loudly
+  // instead of navigating to "undefined/app-auth" and silently doing nothing.
+  if (!OAUTH_PORTAL_URL || !APP_ID) {
+    console.error(
+      "[OAuth] Cannot start login: EXPO_PUBLIC_OAUTH_PORTAL_URL and/or " +
+        "EXPO_PUBLIC_APP_ID were not set when this client was built. " +
+        "These are inlined at build time — see .env.example.",
+    );
+    return null;
+  }
+
   const loginUrl = getLoginUrl();
 
   if (ReactNative.Platform.OS === "web") {

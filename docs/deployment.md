@@ -1,109 +1,164 @@
 # Deployment & Configuration
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-06-10
 
 ---
 
 ## Overview
 
-The application consists of two deployable components: the **Expo mobile app** (built as APK/IPA or served via Expo Go) and the **Node.js backend server** (Express + tRPC). Both must be running for the app to function.
+Cal🔥Caliente is one Expo (React Native) codebase that produces **three
+independently-deployed artifacts**:
+
+| Artifact | How it's built | Notes |
+|----------|----------------|-------|
+| **Backend API** (Express + tRPC) | `npm run build` → `dist/index.js` (esbuild) | API-only — does **not** serve the web build |
+| **Web app** | Expo static export (`web.output: "static"`) | Hosted separately from the API |
+| **Native iOS / Android** | Expo build → IPA / APK | Not built yet — see "Building → Native" |
+
+All three talk to the same backend API and the same Manus OAuth portal for login.
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | — | MySQL/TiDB connection string |
-| `PORT` | No | `3000` | Backend server port |
-| `NODE_ENV` | No | `development` | Environment mode |
-| `FACEBOOK_GRAPH_API_TOKEN` | No | — | Facebook Graph API access token for scraping |
-| `INSTAGRAM_GRAPH_API_TOKEN` | No | — | Instagram Graph API access token for scraping |
-| `GOOGLE_MAPS_API_KEY` | No | — | Google Maps API key for geocoding (future) |
+**Source of truth: [`.env.example`](../.env.example).** Copy it to `.env` (gitignored)
+and fill in. Two groups:
+
+- **Server vars** — read by `server/_core/env.ts`; stay on the server.
+- **Client vars (`EXPO_PUBLIC_*`)** — ⚠️ **inlined into the JS bundle at build
+  time.** Not secret, but they must be present *when you build*, or login breaks at
+  runtime. In the Manus preview they're injected automatically; for any build
+  **outside** Manus you must provide them yourself.
+
+The most common launch bug: `EXPO_PUBLIC_OAUTH_PORTAL_URL` unset → the "Sign In"
+button builds `undefined/app-auth` and goes nowhere.
 
 ---
 
-## Development Setup
-
-The development environment runs both the Metro bundler and the API server concurrently:
+## Local Development
 
 ```bash
-pnpm dev
+# Terminal 1 — API server (port 3000, hot reload)
+npm run dev:server
+# Terminal 2 — Expo Metro / web (port 8081)
+npm run dev:metro
 ```
 
-This executes two processes:
-- `dev:metro` — Expo Metro bundler on port 8081
-- `dev:server` — Express API server on port 3000 (with hot reload via `tsx watch`)
+(`npm run dev` runs both via `concurrently`, but pnpm is broken on some local Node
+versions — run them separately if so. See `docs/TODO.md` "Worth knowing".)
 
 ---
 
-## Database Setup
+## Database & Migrations
 
-The app uses MySQL (TiDB) with Drizzle ORM. To apply schema changes:
+MySQL (TiDB) via Drizzle ORM. Schema in `drizzle/schema.ts`; migrations in
+`drizzle/`. Generate + apply:
 
 ```bash
-pnpm db:push
+npm run db:push      # drizzle-kit generate && drizzle-kit migrate
 ```
 
-This generates migration files and applies them to the database. On first server startup, the `seedDatabase()` function automatically populates demo data if the `events` table is empty.
+On first server start, `seedDatabase()` populates default sources if `events` is
+empty. **Migrations are applied manually in Manus** — review the SQL first
+(migration `0005` required a pre-deploy duplicate check; see its header).
 
 ---
 
-## Building for Production
+## Building
 
-### Mobile App (APK/IPA)
-
-The recommended approach is to use the Manus platform's **Publish** button, which triggers the Expo build pipeline and generates the APK. Do not attempt to build the APK directly in the sandbox, as this will cause resource exhaustion.
-
-### Backend Server
+### Backend server
 
 ```bash
-pnpm build    # Bundles server to dist/index.js via esbuild
-pnpm start    # Runs the production server
+npm run build    # esbuild → dist/index.js
+npm start        # NODE_ENV=production node dist/index.js
 ```
 
+Host it anywhere Node runs. It needs all **server** env vars and network access to
+the DB and the Manus OAuth/forge endpoints.
+
+### Web
+
+```bash
+npx expo export --platform web   # → dist/ static site
+```
+
+Serve the static output from any host/CDN. Set `EXPO_PUBLIC_API_BASE_URL` to the
+backend URL at build time, and add the web origin to `ALLOWED_ORIGINS` (below).
+
+### Native (iOS / Android)
+
+Two paths:
+
+- **Manus Publish (fastest).** The Manus **Publish** button runs the Expo build
+  pipeline and produces an APK. Do not build the APK inside the dev sandbox
+  (resource exhaustion). This is the intended path today; there is **no `eas.json`
+  in the repo** because Manus owns the build.
+- **Independent EAS (full store control).** Requires an Expo/EAS account, an
+  `eas.json` + EAS `projectId` in `app.config.ts`, `eas-cli`, an Apple Developer
+  account ($99/yr) and Google Play account ($25), and signing credentials. Needed
+  for App Store / TestFlight / Play Store distribution rather than a raw APK.
+
 ---
 
-## Configuration Constants
+## 🚀 Pre-launch checklist
 
-Key application constants are defined in `shared/constants.ts` and shared between frontend and backend:
+Things that block a real public launch (as of 2026-06-10):
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `APP_NAME` | `"Salsa & Bachata Japan"` | Display name |
-| `APP_VERSION` | `"1.0.0"` | App version |
-| `DEFAULT_REGION` | `"japan"` | Default scraping region |
-| `API_DEFAULT_PAGE_SIZE` | `50` | Default pagination limit |
-| `API_MAX_PAGE_SIZE` | `500` | Maximum pagination limit |
-| `API_EVENT_LOOKAHEAD_DAYS` | `60` | Default event lookahead window |
-| `SCRAPER_INTERVAL_MS` | `3,600,000` | Scraper cycle interval (1 hour) |
+- [ ] **Backend hosted at a stable URL** with all server env vars set
+      (`DATABASE_URL`, `JWT_SECRET`, `OAUTH_SERVER_URL`, `VITE_APP_ID`, forge keys).
+- [ ] **Client built with the `EXPO_PUBLIC_*` OAuth vars set** (portal / server /
+      app id). Unset = login silently broken. See `.env.example`.
+- [ ] **`ALLOWED_ORIGINS` includes the production web domain** — `server/_core/cors.ts`
+      only ships localhost + `*.manuspre.computer`. Native apps send no Origin
+      header, so this is web-only.
+- [ ] **OAuth portal whitelists the production redirect URIs** — the web callback
+      (`{API}/api/oauth/callback`) and the native deep link
+      (`manus<timestamp>://oauth/callback`). Manus-dashboard step, not code.
+- [ ] **`OWNER_OPEN_ID` set** if you want an admin user — otherwise `adminProcedure`
+      is unreachable (no user ever gets the `admin` role).
+- [ ] **Version / build-number management.** `version` is hardcoded `"1.0.0"` in
+      `app.config.ts` with no `versionCode`/`buildNumber`/`runtimeVersion`. Stores
+      require an incrementing build number per upload.
+- [ ] **Privacy policy + store listing assets** (icon/splash exist; screenshots,
+      description, privacy URL do not). Required by both stores.
 
----
+### Deliberately deferred (don't ship as if working)
 
-## Expanding to New Regions
-
-The app is designed for Japan but can be expanded to other regions:
-
-1. Add new city options to `JAPAN_CITIES` in `shared/constants.ts` (or create a region-specific constant).
-2. Add new seed sources for the target region in `server/_core/index.ts`.
-3. Update the `region` field on new sources to the target region identifier.
-4. Add region-based filtering to the API if needed.
-5. Update the app name and branding as appropriate.
+- **Push notifications are not wired.** `expo-notifications` is installed but there
+  is no token registration or send path; `server/_core/notification.ts` is Manus's
+  web `SendNotification`, not Expo Push. The Settings "New Event Alerts" control is a
+  **"Coming soon" placeholder**, and `POST_NOTIFICATIONS` (Android) was removed from
+  `app.config.ts` until push lands. Restore the toggle + permission together.
+- **Microphone / video capabilities removed.** The `expo-audio` (mic) and
+  `expo-video` (background-audio / PiP) config plugins were dropped from
+  `app.config.ts` — nothing uses them yet, and declaring unused permissions risks
+  store rejection. Re-add (with usage strings) when the Phase-2 voice
+  event-submission flow ships.
+- **Preferences server-sync.** `preferences.get`/`upsert` persist scalar settings,
+  but the Settings screen still uses local AsyncStorage. See `docs/TODO.md` Up-next #2.
 
 ---
 
 ## Monitoring
 
-The server provides basic monitoring through console logging:
+Console logging by prefix: `[Seed]` (seeding), `[Scraper]` / `[Scraper:HTML]` /
+`[Scraper:Facebook]` / `[Scraper:Instagram]` (scrape cycles), `[api]` (port
+binding), `[OAuth]` / `[Auth]` (login flow). The `scrape_logs` table is a
+persistent audit trail of scraping activity (counts, status, errors, duration).
 
-| Log Prefix | Source | Information |
-|------------|--------|-------------|
-| `[Seed]` | Startup | Database seeding status |
-| `[Scraper]` | Scheduler | Scrape cycle start/end, event counts |
-| `[Scraper:HTML]` | HTML adapter | Fetch results, errors |
-| `[Scraper:Facebook]` | FB adapter | API status, token availability |
-| `[Scraper:Instagram]` | IG adapter | API status, token availability |
-| `[Scraper:RSS]` | RSS adapter | Fetch results, errors |
-| `[api]` | Server | Port binding, startup confirmation |
+---
 
-The `scrape_logs` database table provides a persistent audit trail of all scraping activity, queryable for debugging and performance analysis.
+## Key constants
+
+Defined in `shared/constants.ts` (shared frontend/backend):
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `APP_VERSION` | `"1.0.0"` | App version |
+| `API_DEFAULT_PAGE_SIZE` / `API_MAX_PAGE_SIZE` | `50` / `500` | Pagination |
+| `API_EVENT_LOOKAHEAD_DAYS` | `60` | Default event lookahead window |
+| `SCRAPER_INTERVAL_MS` | `21,600,000` (6h) | Scraper cycle interval |
+
+Geocoding uses the **GSI** (国土地理院) address API — no key required (`server/geocode.ts`).
+The display name is **Cal🔥Caliente** (`app.config.ts`); the app targets Japan
+(`JAPAN_CITIES`) but is region-expandable.

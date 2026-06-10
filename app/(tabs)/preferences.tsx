@@ -361,15 +361,14 @@ export default function PreferencesScreen() {
           </SettingRow>
         ))}
 
-        {/* Notifications */}
+        {/* Notifications — push isn't wired yet (no token registration / send
+            path), so this is a placeholder rather than a toggle that does
+            nothing. Restore the Switch + POST_NOTIFICATIONS permission together. */}
         <SectionHeader title="Notifications" />
         <SettingRow label="New Event Alerts">
-          <Switch
-            value={prefs.notificationsEnabled}
-            onValueChange={(v) => updatePref("notificationsEnabled", v)}
-            trackColor={{ false: colors.border, true: colors.primary + "80" }}
-            thumbColor={prefs.notificationsEnabled ? colors.primary : colors.muted}
-          />
+          <View style={{ backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>Coming soon</Text>
+          </View>
         </SettingRow>
 
         {/* Manage Sources */}
