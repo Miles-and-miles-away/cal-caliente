@@ -116,6 +116,31 @@ const config: ExpoConfig = {
         },
       },
     ],
+    // Photo-library access for the "submit an event" form's optional flyer
+    // upload (launchImageLibraryAsync). Only the photos permission is declared —
+    // we don't use the camera or microphone here.
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "Cal🔥Caliente needs photo access so you can attach a flyer to an event you submit.",
+      },
+    ],
+    // "Share to Cal🔥Caliente" target: a shared URL / text / image from another
+    // app (FB / IG / LINE …) opens the app and routes into the submit-event form
+    // (prefilled). NOTE: this is a native share extension — it requires a custom
+    // dev build (`expo prebuild` / EAS) and does NOT work in Expo Go or on web.
+    [
+      "expo-share-intent",
+      {
+        iosActivationRules: {
+          NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+          NSExtensionActivationSupportsText: true,
+          NSExtensionActivationSupportsImageWithMaxCount: 1,
+        },
+        androidIntentFilters: ["text/*", "image/*"],
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

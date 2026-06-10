@@ -40,6 +40,7 @@ const MAPPING = {
   "star.fill": "star",
   "location.fill": "my-location",
   "chevron.left": "chevron-left",
+  "photo": "photo",
 } as IconMapping;
 
 /**

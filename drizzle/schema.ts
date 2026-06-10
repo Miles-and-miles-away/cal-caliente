@@ -52,6 +52,10 @@ export const events = mysqlTable(
     sourceUrl: text("sourceUrl"),
     price: varchar("price", { length: 200 }),
     organizer: varchar("organizer", { length: 300 }),
+    // Set when a signed-in user submits an event through the manual submit form.
+    // NULL for scraped events. No FK (matches the codebase's no-FK convention);
+    // the value is `users.id`. Enables future "my submissions" / abuse handling.
+    submittedByUserId: int("submittedByUserId"),
     isVerified: boolean("isVerified").default(false).notNull(),
     isCancelled: boolean("isCancelled").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -121,3 +125,32 @@ export const userPreferences = mysqlTable("user_preferences", {
 
 export type UserPreferences = typeof userPreferences.$inferSelect;
 export type InsertUserPreferences = typeof userPreferences.$inferInsert;
+
+// ─── Event Attendance (Interested / Going) ───────────────────────────────────
+// Public social-proof RSVP. Aggregate counts (interested / going) per event are
+// shown to everyone; only the row's owner sees it as "their" status. Distinct
+// from the personal, device-local "Save to My Calendar" favorites. A clean
+// reinstatement of the table created in migration 0002 and dropped in 0003 —
+// now with UNIQUE(userId,eventId) for upsert semantics and an eventId index for
+// the per-event count query.
+export const eventAttendance = mysqlTable(
+  "event_attendance",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    eventId: int("eventId").notNull(),
+    status: mysqlEnum("status", ["interested", "going"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    // One row per (user, event): the set mutation upserts onto this key, and it
+    // keeps a user from double-counting toward an event's totals.
+    userEventIdx: uniqueIndex("event_attendance_user_event_idx").on(table.userId, table.eventId),
+    // Drives the `count(*) ... WHERE eventId = ? GROUP BY status` summary.
+    eventIdx: index("event_attendance_event_idx").on(table.eventId),
+  }),
+);
+
+export type EventAttendance = typeof eventAttendance.$inferSelect;
+export type InsertEventAttendance = typeof eventAttendance.$inferInsert;

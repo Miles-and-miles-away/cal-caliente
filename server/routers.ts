@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -13,12 +14,20 @@ import {
   getRecentScrapeLogs,
   getUserPreferences,
   upsertUserPreferences,
+  insertSubmittedEvent,
+  DuplicateEventError,
+  getEventAttendance,
+  setEventAttendance,
+  getEventAttendanceCounts,
 } from "./db";
+import { storagePut } from "./storage";
 import {
   ALLOWED_URL_PROTOCOLS,
   MAX_URL_LENGTH,
   MAX_SOURCE_NAME_LENGTH,
   API_MAX_PAGE_SIZE,
+  DANCE_STYLES,
+  EVENT_TYPES,
 } from "../shared/constants";
 
 // ─── Input Validation Schemas ────────────────────────────────────────────────
@@ -46,6 +55,74 @@ const eventListInput = z.object({
 
 const eventGetInput = z.object({
   id: z.number().int().positive(),
+});
+
+// Reusable http(s) URL guard (same protocol allowlist as `sourceAddInput`).
+const httpUrl = z
+  .string()
+  .max(MAX_URL_LENGTH)
+  .refine(
+    (url) => {
+      try {
+        return ALLOWED_URL_PROTOCOLS.includes(new URL(url).protocol as any);
+      } catch {
+        return false;
+      }
+    },
+    { message: "URL must use https:// or http:// protocol" }
+  );
+
+// Manual "submit an event" form. Mirrors the writable, user-facing columns on
+// `events` (cf. the LLM `llmEventSchema` in event-extractor.ts) but for hand
+// entry. `.strict()` rejects unknown keys at the edge. The optional image is a
+// base64 payload the resolver uploads to storage; size is bounded here (coarse)
+// and again in the resolver (decoded bytes) to stay under the 1MB request limit.
+const eventSubmitInput = z
+  .object({
+    title: z.string().max(500).transform((s) => s.trim()).refine((s) => s.length >= 1, {
+      message: "Title is required",
+    }),
+    startAt: isoDate,
+    endAt: isoDate.optional(),
+    description: z.string().max(5000).optional(),
+    danceStyle: z.enum(DANCE_STYLES).optional(),
+    eventType: z.enum(EVENT_TYPES).optional(),
+    venueName: z.string().max(500).optional(),
+    venueAddress: z.string().max(2000).optional(),
+    city: z.string().max(100).optional(),
+    prefecture: z.string().max(100).optional(),
+    nearestStation: z.string().max(200).optional(),
+    price: z.string().max(200).optional(),
+    organizer: z.string().max(300).optional(),
+    sourceUrl: httpUrl.optional(),
+    image: z
+      .object({
+        base64: z.string().min(1).max(1_400_000),
+        mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      })
+      .optional(),
+  })
+  .strict();
+
+// Decoded image must stay well under the 1MB Express body limit
+// (server/_core/index.ts) once base64 + JSON envelope overhead is added.
+const MAX_SUBMISSION_IMAGE_BYTES = 600 * 1024;
+
+const eventAttendanceInput = z.object({
+  eventId: z.number().int().positive(),
+});
+
+// `status: null` clears the caller's RSVP. The two real states map to the
+// `event_attendance.status` enum.
+const eventSetAttendanceInput = z.object({
+  eventId: z.number().int().positive(),
+  status: z.enum(["interested", "going"]).nullable(),
+});
+
+// Batched counts for the visible cards. Capped at one list page so the GET
+// query string (httpBatchLink encodes input in the URL) stays bounded.
+const eventAttendanceCountsInput = z.object({
+  eventIds: z.array(z.number().int().positive()).max(API_MAX_PAGE_SIZE),
 });
 
 const sourceAddInput = z.object({
@@ -128,6 +205,99 @@ export const appRouter = router({
     get: publicProcedure.input(eventGetInput).query(async ({ input }) => {
       return getEvent(input.id);
     }),
+    // Manual user submission. Gated behind auth and attributed to ctx.user.id;
+    // the event is created `isVerified: false` and shows up for everyone via
+    // the public `events.list`. Duplicates of an existing event are rejected
+    // (CONFLICT) rather than merged.
+    submit: protectedProcedure
+      .input(eventSubmitInput)
+      .mutation(async ({ ctx, input }) => {
+        let imageUrl: string | undefined;
+        if (input.image) {
+          // expo-image-picker returns raw base64; strip a data-URI prefix defensively.
+          const base64 = input.image.base64.replace(/^data:[^;]+;base64,/, "");
+          const buffer = Buffer.from(base64, "base64");
+          if (buffer.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Image could not be decoded." });
+          }
+          if (buffer.length > MAX_SUBMISSION_IMAGE_BYTES) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Image is too large — please choose one under 600KB.",
+            });
+          }
+          const ext =
+            input.image.mimeType === "image/png"
+              ? "png"
+              : input.image.mimeType === "image/webp"
+                ? "webp"
+                : "jpg";
+          try {
+            const { url } = await storagePut(
+              `submissions/event.${ext}`,
+              buffer,
+              input.image.mimeType,
+            );
+            imageUrl = url;
+          } catch {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Image upload failed. Try again or submit without an image.",
+            });
+          }
+        }
+
+        try {
+          const { id } = await insertSubmittedEvent(
+            {
+              title: input.title,
+              startAt: input.startAt,
+              endAt: input.endAt,
+              description: input.description,
+              danceStyle: input.danceStyle,
+              eventType: input.eventType,
+              venueName: input.venueName,
+              venueAddress: input.venueAddress,
+              city: input.city,
+              prefecture: input.prefecture,
+              nearestStation: input.nearestStation,
+              price: input.price,
+              organizer: input.organizer,
+              sourceUrl: input.sourceUrl,
+              imageUrl,
+            },
+            ctx.user.id,
+          );
+          return { success: true, id };
+        } catch (err) {
+          if (err instanceof DuplicateEventError) {
+            throw new TRPCError({ code: "CONFLICT", message: err.message });
+          }
+          throw err;
+        }
+      }),
+    // Public RSVP summary: aggregate interested/going counts (visible to everyone
+    // for social proof) plus the caller's own status (null when signed out — uses
+    // the same nullable-ctx.user pattern as the public `auth.me`).
+    attendance: publicProcedure.input(eventAttendanceInput).query(async ({ ctx, input }) => {
+      return getEventAttendance(input.eventId, ctx.user?.id);
+    }),
+    // Public batched counts for browse-time social proof on cards. No myStatus —
+    // cards show only the aggregate totals.
+    attendanceCounts: publicProcedure
+      .input(eventAttendanceCountsInput)
+      .query(async ({ input }) => {
+        return getEventAttendanceCounts(input.eventIds);
+      }),
+    // Set / clear the caller's own RSVP, then return the fresh summary so the UI
+    // can update without a second round-trip. Personal "Save to My Calendar"
+    // (favorites) is unrelated and stays device-local.
+    setAttendance: protectedProcedure
+      .input(eventSetAttendanceInput)
+      .mutation(async ({ ctx, input }) => {
+        await setEventAttendance(ctx.user.id, input.eventId, input.status);
+        return getEventAttendance(input.eventId, ctx.user.id);
+      }),
   }),
 
   // `list` is public (read-only). The mutations are gated: now that users can

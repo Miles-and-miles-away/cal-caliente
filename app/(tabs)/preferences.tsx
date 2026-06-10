@@ -385,6 +385,21 @@ export default function PreferencesScreen() {
             <IconSymbol name="chevron.right" size={16} color={colors.muted} />
           </View>
         </Pressable>
+
+        {/* Submit an event */}
+        <View style={{ height: 8 }} />
+        <Pressable
+          onPress={() => router.push("/submit" as any)}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+            <IconSymbol name="plus" size={18} color={colors.primary} />
+            <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "500", flex: 1, marginLeft: 10 }}>
+              Submit an Event
+            </Text>
+            <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+          </View>
+        </Pressable>
       </ScrollView>
     </ScreenContainer>
   );

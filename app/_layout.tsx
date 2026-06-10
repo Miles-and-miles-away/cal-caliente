@@ -1,6 +1,7 @@
 import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { useShareIntent } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -36,6 +37,23 @@ export default function RootLayout() {
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
+
+  // Native "share to Cal Caliente" handler. On web this hook self-disables
+  // (Platform.OS === "web"), so `hasShareIntent` never fires and nothing here
+  // runs. On a native dev build, a shared URL / text / image opens the prefilled
+  // submit form (the params are consumed by app/submit.tsx).
+  const router = useRouter();
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  useEffect(() => {
+    if (!hasShareIntent) return;
+    const params: Record<string, string> = {};
+    if (shareIntent.webUrl) params.link = shareIntent.webUrl;
+    if (shareIntent.text) params.text = shareIntent.text;
+    if (shareIntent.meta?.title) params.title = shareIntent.meta.title;
+    router.push({ pathname: "/submit", params } as any);
+    resetShareIntent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasShareIntent]);
 
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
@@ -107,6 +125,7 @@ export default function RootLayout() {
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="event/[id]" options={{ presentation: "card" }} />
                   <Stack.Screen name="sites" options={{ presentation: "card" }} />
+                  <Stack.Screen name="submit" options={{ presentation: "card" }} />
                   <Stack.Screen name="oauth/callback" />
                 </Stack>
                 <StatusBar style="auto" />

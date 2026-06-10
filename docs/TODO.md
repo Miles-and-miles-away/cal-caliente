@@ -1,36 +1,21 @@
 # Cal🔥Caliente — Project TODO & Roadmap
 
-**Last Audited:** 2026-06-09 (after v1.7: auth last-mile wired)
-**Test Coverage:** 368 passing, 0 skipped
+**Last Audited:** 2026-06-10 (after v1.9: engagement RSVP + share extension)
+**Test Coverage:** 410 passing, 0 skipped
 
 ---
-
-## 🎉 v1 shipped
-
-The scraper-to-app pipeline is alive end-to-end. After multiple sessions of building scaffolding, real events are now flowing:
-
-- ✅ canonicalKey schema migration applied to the production DB (`varchar(64)` + index)
-- ✅ Lockfile regen committed (`aa9f4e7`); CI green
-- ✅ Server restarted in Manus; HTML adapter extracted real Tokyo events from SalsaVida via `forge.manus.im`
-- ✅ Cross-source dedup verified: same canonicalKey across SalsaVida + LatinDanceCalendar merges into one row
-
-**The "Manus pattern" is broken.** Until this branch, every event in the app was a hardcoded demo. Now extraction is real.
-
----
-
-> **v1.6 cleared the data-pipeline backlog** (geocode iCal events, apply migration
-> 0005, wire the Map screen). **v1.7 wired auth's last mile** (login/logout UI +
-> protected mutations + `preferences` procedures) — see both under Verified
-> complete. What remains is user-submitted events.
 
 ## 🔜 Up next (priority order)
-
-### 1. User-submitted events (Phase 2) — now unblocked (auth shipped)
-Submit-event flow (screenshot / paste / voice → server LLM extract → user confirms
-→ save). Building blocks exist: `extractEventsFromHtml`
-(`server/_core/event-extractor.ts`), `voiceTranscription.ts`, `imageGeneration.ts`.
-Events get attributed to the signed-in user (`ctx.user.id`), which auth now
-provides. Full detail under "Later → Phase 2".
+ 
+### 1. ✅ User-submitted events — shipped v1.8 (manual form)
+Done — see "v1.8" under Verified complete. Descoped from the original
+screenshot/voice → LLM-extract idea to a **plain manual form** (no LLM, no
+voice): signed-in users fill title/description/venue/date/link + optional flyer
+image, and it saves as a normal `events` row visible to everyone.
+**Deferred follow-ups:** LLM/screenshot/voice auto-extract (`extractEventsFromHtml`,
+`voiceTranscription.ts` still exist for it), share extension, "my submissions"
+list + edit/delete-your-own, and an admin moderation queue (submissions currently
+show immediately, flagged `isVerified=false` / "Community submission").
 
 ### 2. Preferences server-sync (deferred — not worth it yet)
 `preferences.get` / `preferences.upsert` ship in v1.7 and persist every **scalar**
@@ -56,12 +41,13 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
 
 ### Phase 2: User-submitted events (the screenshot/voice flow)
 - [ ] Submit-event UI (image, paste, voice) → server LLM extracts → user confirms → save.
-- [ ] On-device LLM (Apple Foundation Models / Gemini Nano via AICore) for capable devices; cloud fallback otherwise.
-- [ ] iOS/Android share extension so "share to Cal Caliente" works from FB/IG/LINE.
+- [x] iOS/Android share extension so "share to Cal Caliente" works from FB/IG/LINE.
+  Shipped v1.9 (`expo-share-intent`) — see Verified complete. ⚠️ native-only: needs a
+  dev build (`expo prebuild`/EAS); not exercisable in Expo Go or on web.
 
-### Phase 3: Engagement features (later still)
-- [ ] "Interested" / "Going" buttons on events.
-- [ ] Event recommendations based on saved-favourites pattern.
+### Phase 3: Engagement feature
+- [x] "Interested" / "Going" buttons on events. Shipped v1.9 (`event_attendance`,
+  public counts) — see Verified complete.
 
 ### Phase 4: Resilience finishing touches
 - [ ] Hand-test failure scenarios (no network, server down, DB crash). Listed in `docs/resilience-audit.md` but never actually exercised.
@@ -141,6 +127,66 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
   skip is gone. +11 new router tests (auth-gating ×4, `preferences` ×7). Suite:
   **368 passing, 0 skipped**.
 
+### v1.8 — user-submitted events (manual form, shipped 2026-06-10)
+- [x] **`submittedByUserId` column** on `events` (nullable; migration `0006`,
+  applied locally). Attributes a manual submission to its creator; NULL for
+  scraped events. Enables the future "my submissions" / moderation follow-ups.
+  *(Migration `0006` was later regenerated to also carry the v1.9 `event_attendance`
+  table — the two were combined into a single migration so Manus applies one.)*
+- [x] **`events.submit` tRPC mutation** (`protectedProcedure`): strict Zod schema
+  mirroring the manual fields (title/startAt required; dance-style + event-type
+  enums; http(s)-only link; optional base64 image bounded at 600KB under the 1MB
+  request limit). Attributes to `ctx.user.id`, inserts `isVerified=false`, maps a
+  dedup-key collision to `CONFLICT` ("already on the calendar").
+- [x] **DB helpers** (`server/db.ts`): `getOrCreateSubmissionSource` (a sentinel
+  `internal://user-submissions` source — `isActive=false`, hidden from
+  `listSources`, satisfies the NOT-NULL `sourceId`) and `insertSubmittedEvent`
+  (computes canonicalKey/venueDateKey so submissions dedup like scraped events;
+  plain insert, not `upsertEvent`, so a user form never rewrites a scraped row's
+  provenance). Both have `*WithDb` variants for unit testing.
+- [x] **Image upload**: `expo-image-picker` (`~17.0.11`, web + native; photos
+  permission added to `app.config.ts`). Client picks → base64 → `events.submit`
+  → server `storagePut` → `imageUrl`. Event-detail screen now renders a hero
+  image + a "Community submission" badge (keyed off `submittedByUserId`, not
+  `isVerified`, so scraped events aren't mislabelled).
+- [x] **Frontend**: new `app/submit.tsx` auth-aware form (sign-in CTA when logged
+  out); reachable from a "+ Add" button on the Calendar header and a "Submit an
+  Event" card in Settings.
+- [x] **Tests**: +11 `events.submit` router tests (auth gate, validation, enums,
+  link, oversized image, image-upload forwarding, duplicate→CONFLICT) and a new
+  `tests/submitted-event.test.ts` (5) for the db helpers. Suite: **389 passing**.
+
+### v1.9 — engagement (Interested/Going) + share extension (shipped 2026-06-10)
+- [x] **`event_attendance` table** — a clean reinstatement of the table created in
+  `0002` and dropped in `0003`: `(userId, eventId, status enum('interested','going'),
+  …)` with `UNIQUE(userId,eventId)` + an `eventId` index. **Folded into migration
+  `0006`** (combined with `submittedByUserId` per request) so Manus runs one migration.
+- [x] **Public RSVP, separate from personal Save.** Aggregate interested/going counts
+  are visible to everyone (social proof); only the caller's own status is per-user.
+  The device-local "Save to My Calendar" favorites (`lib/favorites-context.tsx`) are
+  unchanged and stay personal.
+- [x] **DB helpers + procedures**: `getEventAttendance` / `setEventAttendance`
+  (`*WithDb` variants for tests); `events.attendance` (**public** query — counts +
+  `myStatus` via nullable `ctx.user`) and `events.setAttendance` (**protected**;
+  `status: null` clears the RSVP; returns the fresh summary). Upsert on the UNIQUE key.
+- [x] **Event-detail UI**: Interested / Going pills with live public counts below the
+  Save button; tap-again clears; signed-out tap → sign-in prompt (counts still shown).
+- [x] **Submit-form prefill** (`app/submit.tsx`): reads `?link` / `?title` / `?text`
+  route params to pre-populate fields (web-testable; also the share-extension hand-off).
+- [x] **Share extension** (`expo-share-intent` `~5.1.1`, SDK-54 line): config plugin in
+  `app.config.ts` (iOS web-URL/text/image + Android `text/*`,`image/*`); root-layout
+  `useShareIntent` handler routes a shared URL/text/image into the prefilled submit
+  form. ⚠️ **Native-only** — self-disables on web (verified: web bundle still exports),
+  but the share target itself needs a dev build (`expo prebuild`/EAS); unverifiable here.
+- [x] **Per-card "🔥 N going" badges** (browse-time social proof). `events.attendanceCounts`
+  (public, batched — one grouped query over the `eventId` index, input capped at one
+  page) feeds the Calendar + Discover cards; `EventCard` renders the badge only when a
+  count is > 0. Polled every **5 min** (`refetchInterval: 300_000`) — chosen staleness
+  bound; a user's own RSVP invalidates it for instant reflection. No new migration.
+- [x] **Tests**: +8 router tests (`events.attendance` ×3, `events.setAttendance` ×5),
+  +4 router tests (`events.attendanceCounts`), and `tests/event-attendance.test.ts` (9)
+  for the db helpers. Suite: **410 passing**.
+
 ### Security hardening
 - [x] CORS allowlist (replaces dangerous origin reflection) — 11 tests
 - [x] SSRF protection (`safeFetch` blocks RFC1918/loopback/link-local + manual redirect validation) — 29 tests
@@ -215,7 +261,9 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
 | Events in production DB | Real — iCal insert verified (migration 0005 report) |
 | iCal venue geocoding | Live via GSI, address-cached (`server/geocode.ts`) |
 | Auth | Wired — OAuth login/logout UI live, mutations gated by `protectedProcedure` |
-| Test files / tests | 20 / 368 passing, 0 skipped |
+| User-submitted events | Live — manual `events.submit` form, attributed + `isVerified=false` |
+| Engagement | Interested/Going RSVP with public counts (detail + per-card badges); share extension (native, dev-build only) |
+| Test files / tests | 23 / 410 passing, 0 skipped |
 | Documentation files | 9 (some drift, see "Worth knowing") |
 | Open security issues | 0 in main code (the 3 auth-deferred items are now closed) |
-| Schema migrations | 5/5 applied & verified |
+| Schema migrations | 7 files, applied locally (0006 = `submittedByUserId` + `event_attendance`, combined; apply to prod Manus-side) |

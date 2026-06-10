@@ -65,6 +65,7 @@ function makeRow(overrides: Partial<Event> = {}): Event {
     sourceUrl: "https://example.com/event/1",
     price: "¥2000",
     organizer: "Salud",
+    submittedByUserId: null,
     isVerified: false,
     isCancelled: false,
     createdAt: new Date("2026-05-01T00:00:00Z"),

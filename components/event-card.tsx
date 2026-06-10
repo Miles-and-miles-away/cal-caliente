@@ -26,15 +26,23 @@ interface EventCardProps {
     isVerified?: boolean;
   };
   compact?: boolean;
+  /** Public RSVP counts for browse-time social proof. Absent ⇒ render nothing. */
+  attendance?: { interested: number; going: number };
 }
 
-export function EventCard({ event, compact = false }: EventCardProps) {
+export function EventCard({ event, compact = false, attendance }: EventCardProps) {
   const colors = useColors();
   const router = useRouter();
   const { isFavorite, toggleFavorite } = useFavorites();
   const saved = isFavorite(event.id);
   const styleColor = DANCE_STYLE_COLORS[event.danceStyle ?? "other"] ?? DANCE_STYLE_COLORS.other;
   const dateStr = typeof event.startAt === "string" ? event.startAt : event.startAt.toISOString();
+
+  // Social-proof badge: prefer "going"; fall back to "interested". Hidden when
+  // both are 0 so brand-new events aren't littered with "0 going".
+  const goingN = attendance?.going ?? 0;
+  const interestedN = attendance?.interested ?? 0;
+  const rsvpLabel = goingN > 0 ? `${goingN} going` : interestedN > 0 ? `${interestedN} interested` : null;
 
   const handleSave = () => {
     toggleFavorite(event.id);
@@ -95,6 +103,22 @@ export function EventCard({ event, compact = false }: EventCardProps) {
             )}
             {event.isVerified && (
               <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
+            )}
+            {rsvpLabel && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                  backgroundColor: styleColor + "18",
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ fontSize: 10 }}>🔥</Text>
+                <Text style={{ color: styleColor, fontSize: 11, fontWeight: "700" }}>{rsvpLabel}</Text>
+              </View>
             )}
             {/* Spacer */}
             <View style={{ flex: 1 }} />

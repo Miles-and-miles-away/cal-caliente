@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { EventCard } from "@/components/event-card";
 import { FilterChips } from "@/components/filter-chips";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useFavorites } from "@/lib/favorites-context";
@@ -37,6 +39,7 @@ function isEventInPast(eventDate: string, now: Date): boolean {
 
 export default function CalendarScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { isFavorite, count: favCount } = useFavorites();
   const today = useMemo(() => new Date(), []);
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -114,6 +117,17 @@ export default function CalendarScreen() {
     return eventsByDate[key] ?? [];
   }, [selectedDate, eventsByDate]);
 
+  // Public RSVP counts for the selected day's cards. Batched + polled every 5 min.
+  const selectedEventIds = useMemo(
+    () => selectedDateEvents.map((e: any) => e.id as number),
+    [selectedDateEvents],
+  );
+  const { data: countsData } = trpc.events.attendanceCounts.useQuery(
+    { eventIds: selectedEventIds },
+    { enabled: selectedEventIds.length > 0, refetchInterval: 300_000 },
+  );
+  const counts = countsData ?? {};
+
   const days = useMemo(() => getDaysInMonth(currentYear, currentMonth), [currentYear, currentMonth]);
   const firstDayOffset = days[0]?.getDay() ?? 0;
 
@@ -156,8 +170,17 @@ export default function CalendarScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
           <Text style={{ color: colors.foreground, fontSize: 28, fontWeight: "800" }}>Calendar</Text>
+          <Pressable
+            onPress={() => router.push("/submit" as any)}
+            accessibilityRole="button"
+            accessibilityLabel="Submit an event"
+            style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <IconSymbol name="plus" size={16} color="#FFFFFF" />
+            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>Add</Text>
+          </Pressable>
         </View>
 
         {/* All / My Cal Toggle */}
@@ -332,7 +355,7 @@ export default function CalendarScreen() {
           <View>
             {selectedDateEvents.map((event: any) => (
               <View key={event.id} style={{ marginHorizontal: 16, marginBottom: 10 }}>
-                <EventCard event={event} compact />
+                <EventCard event={event} compact attendance={counts[event.id]} />
               </View>
             ))}
           </View>

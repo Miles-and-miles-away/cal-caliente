@@ -1,9 +1,12 @@
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
+import { useAuth } from "@/hooks/use-auth";
+import { startOAuthLogin } from "@/constants/oauth";
 import { useFavorites } from "@/lib/favorites-context";
 import { trpc } from "@/lib/trpc";
 import { isSafeExternalUrl } from "@/lib/utils";
@@ -26,11 +29,43 @@ export default function EventDetailScreen() {
   const eventId = id && /^\d+$/.test(id) ? Number(id) : 0;
   const { isFavorite, toggleFavorite } = useFavorites();
   const saved = isFavorite(eventId);
+  const { isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
 
   const { data: event, isLoading } = trpc.events.get.useQuery(
     { id: eventId },
     { enabled: eventId > 0 }
   );
+
+  // Public RSVP counts + the caller's own status (null when signed out).
+  const { data: attendance } = trpc.events.attendance.useQuery(
+    { eventId },
+    { enabled: eventId > 0 }
+  );
+  const setAttendance = trpc.events.setAttendance.useMutation({
+    onSuccess: () => {
+      utils.events.attendance.invalidate({ eventId });
+      // Refresh the browse-time card badges so the user's own RSVP shows there too.
+      utils.events.attendanceCounts.invalidate();
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      Alert.alert(/login|unauthor/i.test(msg) ? "Sign in required" : "Couldn't update RSVP", msg);
+    },
+  });
+
+  const handleRsvp = (status: "interested" | "going") => {
+    if (!isAuthenticated) {
+      Alert.alert("Sign in required", "Please sign in to RSVP to this event.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign In", onPress: () => startOAuthLogin().catch(() => {}) },
+      ]);
+      return;
+    }
+    // Tapping the current status again clears it; otherwise switch to it.
+    const next = attendance?.myStatus === status ? null : status;
+    setAttendance.mutate({ eventId, status: next });
+  };
 
   const ev = event as any;
 
@@ -131,6 +166,16 @@ export default function EventDetailScreen() {
 
         <View style={{ height: 4, backgroundColor: styleColor, marginHorizontal: 16, borderRadius: 2 }} />
 
+        {/* Hero image (user-submitted flyers, or any event with an imageUrl) */}
+        {ev.imageUrl ? (
+          <Image
+            source={{ uri: ev.imageUrl }}
+            style={{ width: "100%", height: 200, marginTop: 12, backgroundColor: colors.surface }}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : null}
+
         <View style={{ padding: 20 }}>
           {/* Badges */}
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -144,12 +189,19 @@ export default function EventDetailScreen() {
                 <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>{capitalizeFirst(ev.eventType)}</Text>
               </View>
             )}
-            {ev.isVerified && (
+            {ev.isVerified ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
                 <Text style={{ color: colors.success, fontSize: 11, fontWeight: "600" }}>Verified</Text>
               </View>
-            )}
+            ) : ev.submittedByUserId ? (
+              // Distinguish user submissions specifically — scraped events are
+              // also isVerified=false, so key off submittedByUserId, not !isVerified.
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <IconSymbol name="person.fill" size={12} color={colors.muted} />
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>Community submission</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={{ color: colors.foreground, fontSize: 24, fontWeight: "800", marginBottom: 16, lineHeight: 30 }}>
@@ -256,6 +308,50 @@ export default function EventDetailScreen() {
               </Text>
             </View>
           </Pressable>
+
+          {/* Interested / Going — public RSVP. Counts are visible to everyone
+              (social proof); this is separate from the personal Save above. */}
+          <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
+            {(["interested", "going"] as const).map((status) => {
+              const active = attendance?.myStatus === status;
+              const count =
+                status === "going" ? attendance?.going ?? 0 : attendance?.interested ?? 0;
+              return (
+                <Pressable
+                  key={status}
+                  onPress={() => handleRsvp(status)}
+                  disabled={setAttendance.isPending}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  style={({ pressed }) => [{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: active ? colors.primary : colors.border,
+                    backgroundColor: active ? colors.primary : colors.surface,
+                    opacity: pressed ? 0.8 : 1,
+                  }]}
+                >
+                  <IconSymbol
+                    name={status === "going" ? "checkmark.circle.fill" : "star.fill"}
+                    size={16}
+                    color={active ? "#FFFFFF" : colors.muted}
+                  />
+                  <Text style={{ color: active ? "#FFFFFF" : colors.foreground, fontSize: 14, fontWeight: "700" }}>
+                    {status === "going" ? "Going" : "Interested"}
+                  </Text>
+                  <Text style={{ color: active ? "#FFFFFF" : colors.muted, fontSize: 13, fontWeight: "600" }}>
+                    {count}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           {/* Source link — only render if scraped URL passes http(s) check */}
           {isSafeExternalUrl(ev.sourceUrl) && (

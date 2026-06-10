@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, gte, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lt, lte, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -8,6 +8,7 @@ import {
   eventSources,
   scrapeLogs,
   userPreferences,
+  eventAttendance,
   type Event,
   type InsertEvent,
   type InsertEventSource,
@@ -372,12 +373,155 @@ async function applyMerge(
   }
 }
 
+// ─── User-submitted events ───────────────────────────────────────────────────
+
+/**
+ * Thrown by `insertSubmittedEvent` when the event collides with an existing row
+ * on a UNIQUE dedup key (canonicalKey / venueDateKey). The router maps this to a
+ * CONFLICT so the submitter is told the event is already listed.
+ */
+export class DuplicateEventError extends Error {
+  constructor(message = "This event looks like it's already on the calendar.") {
+    super(message);
+    this.name = "DuplicateEventError";
+  }
+}
+
+export interface SubmittedEventInput {
+  title: string;
+  startAt: string; // ISO-8601
+  endAt?: string | null;
+  description?: string | null;
+  danceStyle?: string | null;
+  eventType?: string | null;
+  venueName?: string | null;
+  venueAddress?: string | null;
+  city?: string | null;
+  prefecture?: string | null;
+  nearestStation?: string | null;
+  price?: string | null;
+  organizer?: string | null;
+  sourceUrl?: string | null;
+  imageUrl?: string | null;
+}
+
+/**
+ * Insert a manually-submitted event, attributed to `userId` and flagged
+ * `isVerified: false`. Unlike `upsertEvent` (which merges across sources), a
+ * submission that collides with an existing event is rejected with
+ * `DuplicateEventError` rather than silently merged — we don't want a user form
+ * rewriting a scraped row's provenance. Coordinates are left null; the
+ * post-scrape geocode backfill (`geocodeMissingEvents`) fills them from the
+ * address on the next cycle, same as iCal events.
+ */
+export async function insertSubmittedEvent(
+  input: SubmittedEventInput,
+  userId: number,
+): Promise<{ id: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return insertSubmittedEventWithDb(db, input, userId);
+}
+
+// Takes the db explicitly so it's directly testable with a mock (cf.
+// `upsertEventWithDb`). `insertSubmittedEvent` just resolves the db and delegates.
+export async function insertSubmittedEventWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  input: SubmittedEventInput,
+  userId: number,
+): Promise<{ id: number }> {
+  const sourceId = await getOrCreateSubmissionSourceWithDb(db);
+  const startAt = new Date(input.startAt);
+  const canonicalKey = computeCanonicalKey(input.title, startAt);
+  const venueDateKey = computeVenueDateKey(input.venueName, startAt);
+
+  const row: InsertEvent = {
+    sourceId,
+    submittedByUserId: userId,
+    canonicalKey,
+    venueDateKey,
+    title: input.title,
+    description: input.description ?? null,
+    danceStyle: (input.danceStyle ?? null) as InsertEvent["danceStyle"],
+    eventType: (input.eventType ?? null) as InsertEvent["eventType"],
+    startAt,
+    endAt: input.endAt ? new Date(input.endAt) : null,
+    venueName: input.venueName ?? null,
+    venueAddress: input.venueAddress ?? null,
+    city: input.city ?? null,
+    prefecture: input.prefecture ?? null,
+    nearestStation: input.nearestStation ?? null,
+    imageUrl: input.imageUrl ?? null,
+    sourceUrl: input.sourceUrl ?? null,
+    price: input.price ?? null,
+    organizer: input.organizer ?? null,
+    isVerified: false,
+  };
+
+  try {
+    const result: any = await db.insert(events).values(row);
+    // mysql2 returns the ResultSetHeader (with insertId) as result[0].
+    const insertId = Number(result?.[0]?.insertId ?? result?.insertId ?? 0);
+    return { id: insertId };
+  } catch (err) {
+    if (isDuplicateKeyError(err)) throw new DuplicateEventError();
+    throw err;
+  }
+}
+
 // ─── Source Queries ──────────────────────────────────────────────────────────
+
+// Sentinel source that owns every manually-submitted event. `events.sourceId`
+// is NOT NULL, so submissions need a source row to point at. It's
+// `isActive: false` (the scraper's `getActiveSources` never returns it) and its
+// `internal://` URL fails `isValidScraperUrl` as a second backstop, so the
+// scraper can never fetch it. Hidden from `listSources` so it doesn't appear as
+// a managed source on the Sites screen.
+export const SUBMISSION_SOURCE_URL = "internal://user-submissions";
+const SUBMISSION_SOURCE_NAME = "User Submissions";
+
+export async function getOrCreateSubmissionSource(): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return getOrCreateSubmissionSourceWithDb(db);
+}
+
+export async function getOrCreateSubmissionSourceWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+): Promise<number> {
+  const existing = await db
+    .select({ id: eventSources.id })
+    .from(eventSources)
+    .where(eq(eventSources.url, SUBMISSION_SOURCE_URL))
+    .limit(1);
+  if (existing.length > 0) return existing[0].id;
+
+  await db.insert(eventSources).values({
+    name: SUBMISSION_SOURCE_NAME,
+    url: SUBMISSION_SOURCE_URL,
+    sourceType: "custom",
+    isActive: false,
+    isUserAdded: false,
+  });
+  const created = await db
+    .select({ id: eventSources.id })
+    .from(eventSources)
+    .where(eq(eventSources.url, SUBMISSION_SOURCE_URL))
+    .limit(1);
+  if (created.length === 0) throw new Error("Failed to create submission source");
+  return created[0].id;
+}
 
 export async function listSources() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(eventSources).orderBy(eventSources.name);
+  // Exclude the internal "User Submissions" sentinel — it's not a scrapable
+  // source the user should see or manage on the Sites screen.
+  return db
+    .select()
+    .from(eventSources)
+    .where(ne(eventSources.url, SUBMISSION_SOURCE_URL))
+    .orderBy(eventSources.name);
 }
 
 export async function getActiveSources() {
@@ -485,4 +629,134 @@ export async function upsertUserPreferences(userId: number, prefs: Record<string
   } else {
     await db.insert(userPreferences).values({ userId, ...safe } as any);
   }
+}
+
+// ─── Event Attendance (Interested / Going) ───────────────────────────────────
+
+export type AttendanceStatus = "interested" | "going";
+
+export interface AttendanceSummary {
+  interested: number;
+  going: number;
+  /** The caller's own status, or null when signed out / not set. */
+  myStatus: AttendanceStatus | null;
+}
+
+const EMPTY_ATTENDANCE: AttendanceSummary = { interested: 0, going: 0, myStatus: null };
+
+export async function getEventAttendance(
+  eventId: number,
+  userId?: number,
+): Promise<AttendanceSummary> {
+  const db = await getDb();
+  if (!db) return EMPTY_ATTENDANCE;
+  return getEventAttendanceWithDb(db, eventId, userId);
+}
+
+export async function getEventAttendanceWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  eventId: number,
+  userId?: number,
+): Promise<AttendanceSummary> {
+  // Public aggregate counts — visible to everyone for social proof.
+  const counts = await db
+    .select({ status: eventAttendance.status, c: sql<number>`count(*)` })
+    .from(eventAttendance)
+    .where(eq(eventAttendance.eventId, eventId))
+    .groupBy(eventAttendance.status);
+
+  let interested = 0;
+  let going = 0;
+  for (const row of counts) {
+    const n = Number(row.c) || 0;
+    if (row.status === "interested") interested = n;
+    else if (row.status === "going") going = n;
+  }
+
+  let myStatus: AttendanceStatus | null = null;
+  if (userId != null) {
+    const mine = await db
+      .select({ status: eventAttendance.status })
+      .from(eventAttendance)
+      .where(and(eq(eventAttendance.eventId, eventId), eq(eventAttendance.userId, userId)))
+      .limit(1);
+    if (mine.length > 0) myStatus = mine[0].status as AttendanceStatus;
+  }
+
+  return { interested, going, myStatus };
+}
+
+export async function setEventAttendance(
+  userId: number,
+  eventId: number,
+  status: AttendanceStatus | null,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  return setEventAttendanceWithDb(db, userId, eventId, status);
+}
+
+// `status: null` clears the caller's RSVP (delete the row). Otherwise upsert onto
+// the UNIQUE(userId,eventId) key so toggling between interested/going updates in
+// place rather than stacking rows (cf. `upsertUser`'s onDuplicateKeyUpdate).
+export async function setEventAttendanceWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  eventId: number,
+  status: AttendanceStatus | null,
+): Promise<void> {
+  if (status === null) {
+    await db
+      .delete(eventAttendance)
+      .where(and(eq(eventAttendance.userId, userId), eq(eventAttendance.eventId, eventId)));
+    return;
+  }
+  await db
+    .insert(eventAttendance)
+    .values({ userId, eventId, status })
+    .onDuplicateKeyUpdate({ set: { status } });
+}
+
+export interface AttendanceCount {
+  interested: number;
+  going: number;
+}
+
+// Batched public counts for many events at once — backs the "X going" badge on
+// list/Discover cards without an N+1 of per-card queries. One grouped scan over
+// the `eventId` index. Returns a map keyed by eventId; events with no RSVPs are
+// simply absent (the caller treats a miss as 0/0).
+export async function getEventAttendanceCounts(
+  eventIds: number[],
+): Promise<Record<number, AttendanceCount>> {
+  if (eventIds.length === 0) return {};
+  const db = await getDb();
+  if (!db) return {};
+  return getEventAttendanceCountsWithDb(db, eventIds);
+}
+
+export async function getEventAttendanceCountsWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  eventIds: number[],
+): Promise<Record<number, AttendanceCount>> {
+  if (eventIds.length === 0) return {};
+  const rows = await db
+    .select({
+      eventId: eventAttendance.eventId,
+      status: eventAttendance.status,
+      c: sql<number>`count(*)`,
+    })
+    .from(eventAttendance)
+    .where(inArray(eventAttendance.eventId, eventIds))
+    .groupBy(eventAttendance.eventId, eventAttendance.status);
+
+  const out: Record<number, AttendanceCount> = {};
+  for (const row of rows) {
+    const id = Number(row.eventId);
+    const entry = out[id] ?? (out[id] = { interested: 0, going: 0 });
+    const n = Number(row.c) || 0;
+    if (row.status === "interested") entry.interested = n;
+    else if (row.status === "going") entry.going = n;
+  }
+  return out;
 }

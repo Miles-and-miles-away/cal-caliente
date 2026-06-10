@@ -102,6 +102,15 @@ export default function DiscoverScreen() {
 
   const eventsList = (events ?? []) as any[];
 
+  // Public RSVP counts for the visible cards. One batched query, polled every
+  // 5 min for fresh-enough social proof (see the staleness tradeoff in TODO).
+  const eventIds = useMemo(() => eventsList.map((e: any) => e.id as number), [eventsList]);
+  const { data: countsData } = trpc.events.attendanceCounts.useQuery(
+    { eventIds },
+    { enabled: eventIds.length > 0, refetchInterval: 300_000 },
+  );
+  const counts = countsData ?? {};
+
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -114,10 +123,10 @@ export default function DiscoverScreen() {
   const renderEvent = useCallback(
     ({ item }: { item: any }) => (
       <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
-        <EventCard event={item} />
+        <EventCard event={item} attendance={counts[item.id]} />
       </View>
     ),
-    []
+    [counts]
   );
 
   const ListHeaderComponent = useCallback(
@@ -288,6 +297,7 @@ export default function DiscoverScreen() {
     <ScreenContainer>
       <FlatList
         data={eventsList}
+        extraData={counts}
         keyExtractor={(item: any) => item.id.toString()}
         renderItem={renderEvent}
         ListHeaderComponent={ListHeaderComponent}

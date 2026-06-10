@@ -13,17 +13,40 @@ const mockDeleteSource = vi.fn();
 const mockGetRecentScrapeLogs = vi.fn();
 const mockGetUserPreferences = vi.fn();
 const mockUpsertUserPreferences = vi.fn();
+const mockInsertSubmittedEvent = vi.fn();
+const mockStoragePut = vi.fn();
+const mockGetEventAttendance = vi.fn();
+const mockSetEventAttendance = vi.fn();
+const mockGetEventAttendanceCounts = vi.fn();
 
-vi.mock("../server/db", () => ({
-  listEvents: mockListEvents,
-  getEvent: mockGetEvent,
-  listSources: mockListSources,
-  addSource: mockAddSource,
-  toggleSource: mockToggleSource,
-  deleteSource: mockDeleteSource,
-  getRecentScrapeLogs: mockGetRecentScrapeLogs,
-  getUserPreferences: mockGetUserPreferences,
-  upsertUserPreferences: mockUpsertUserPreferences,
+vi.mock("../server/db", () => {
+  // Real class so `err instanceof DuplicateEventError` works inside the resolver.
+  class DuplicateEventError extends Error {
+    constructor(message = "This event looks like it's already on the calendar.") {
+      super(message);
+      this.name = "DuplicateEventError";
+    }
+  }
+  return {
+    listEvents: mockListEvents,
+    getEvent: mockGetEvent,
+    listSources: mockListSources,
+    addSource: mockAddSource,
+    toggleSource: mockToggleSource,
+    deleteSource: mockDeleteSource,
+    getRecentScrapeLogs: mockGetRecentScrapeLogs,
+    getUserPreferences: mockGetUserPreferences,
+    upsertUserPreferences: mockUpsertUserPreferences,
+    insertSubmittedEvent: mockInsertSubmittedEvent,
+    DuplicateEventError,
+    getEventAttendance: mockGetEventAttendance,
+    setEventAttendance: mockSetEventAttendance,
+    getEventAttendanceCounts: mockGetEventAttendanceCounts,
+  };
+});
+
+vi.mock("../server/storage", () => ({
+  storagePut: mockStoragePut,
 }));
 
 // systemRouter pulls in OAuth/session machinery we don't need here.
@@ -32,6 +55,7 @@ vi.mock("../server/_core/systemRouter", () => ({
 }));
 
 const { appRouter } = await import("../server/routers");
+const { DuplicateEventError } = await import("../server/db");
 import type { TrpcContext } from "../server/_core/context";
 
 function makeCtx(): TrpcContext {
@@ -169,6 +193,237 @@ describe("events.get", () => {
   it("rejects non-integer id", async () => {
     const caller = appRouter.createCaller(makeCtx());
     await expect(caller.events.get({ id: 1.5 })).rejects.toThrow();
+  });
+});
+
+describe("events.submit", () => {
+  const validInput = {
+    title: "  Saturday Salsa Social  ",
+    startAt: "2026-07-10T19:00:00+09:00",
+  };
+
+  it("inserts a submitted event attributed to the authed user and returns its id", async () => {
+    mockInsertSubmittedEvent.mockResolvedValue({ id: 555 });
+    const caller = appRouter.createCaller(makeAuthedCtx());
+
+    const result = await caller.events.submit({
+      ...validInput,
+      danceStyle: "salsa",
+      eventType: "social",
+      city: "Tokyo",
+      sourceUrl: "https://example.com/event",
+    });
+
+    expect(result).toEqual({ success: true, id: 555 });
+    // Title is trimmed; second arg is the authenticated user's id (never client-supplied).
+    expect(mockInsertSubmittedEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Saturday Salsa Social",
+        startAt: "2026-07-10T19:00:00+09:00",
+        danceStyle: "salsa",
+        eventType: "social",
+        city: "Tokyo",
+        sourceUrl: "https://example.com/event",
+      }),
+      1,
+    );
+  });
+
+  it("rejects an unauthenticated caller before touching the db", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.events.submit(validInput)).rejects.toThrow(
+      /Please login|UNAUTHORIZED/i,
+    );
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty title (after trim)", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ title: "   ", startAt: validInput.startAt }),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unparseable startAt", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ title: "Foo", startAt: "next saturday" }),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid danceStyle enum value", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ ...validInput, danceStyle: "breakdance" as any }),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid eventType enum value", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ ...validInput, eventType: "rave" as any }),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-http(s) link", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ ...validInput, sourceUrl: "javascript:alert(1)" }),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown key (strict schema)", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({ ...validInput, sourceId: 1, isVerified: true } as any),
+    ).rejects.toThrow();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("uploads a valid image to storage and forwards the resulting URL", async () => {
+    mockStoragePut.mockResolvedValue({ key: "submissions/event_x.jpg", url: "https://cdn.example/x.jpg" });
+    mockInsertSubmittedEvent.mockResolvedValue({ id: 7 });
+    const caller = appRouter.createCaller(makeAuthedCtx());
+
+    // ~12KB decoded — comfortably under the 600KB cap.
+    const base64 = "A".repeat(16_000);
+    const result = await caller.events.submit({
+      ...validInput,
+      image: { base64, mimeType: "image/jpeg" },
+    });
+
+    expect(result).toEqual({ success: true, id: 7 });
+    expect(mockStoragePut).toHaveBeenCalledTimes(1);
+    expect(mockInsertSubmittedEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ imageUrl: "https://cdn.example/x.jpg" }),
+      1,
+    );
+  });
+
+  it("rejects an oversized image with BAD_REQUEST and never uploads or inserts", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    // 820k base64 chars → ~615KB decoded, over the 600KB cap.
+    const base64 = "A".repeat(820_000);
+    await expect(
+      caller.events.submit({ ...validInput, image: { base64, mimeType: "image/jpeg" } }),
+    ).rejects.toThrow(/too large|BAD_REQUEST/i);
+    expect(mockStoragePut).not.toHaveBeenCalled();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("maps a DuplicateEventError from the db to a CONFLICT", async () => {
+    mockInsertSubmittedEvent.mockRejectedValue(new DuplicateEventError());
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(caller.events.submit(validInput)).rejects.toThrow(
+      /already on the calendar|CONFLICT/i,
+    );
+  });
+});
+
+describe("events.attendance (public RSVP summary)", () => {
+  it("returns the public counts and resolves myStatus for a signed-in caller", async () => {
+    mockGetEventAttendance.mockResolvedValue({ interested: 4, going: 9, myStatus: "going" });
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    const result = await caller.events.attendance({ eventId: 42 });
+    expect(result).toEqual({ interested: 4, going: 9, myStatus: "going" });
+    // Counts are keyed by event; myStatus by the authenticated user.
+    expect(mockGetEventAttendance).toHaveBeenCalledWith(42, 1);
+  });
+
+  it("stays public — works unauthenticated with myStatus null (no user id passed)", async () => {
+    mockGetEventAttendance.mockResolvedValue({ interested: 4, going: 9, myStatus: null });
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.events.attendance({ eventId: 42 });
+    expect(result.myStatus).toBeNull();
+    expect(mockGetEventAttendance).toHaveBeenCalledWith(42, undefined);
+  });
+
+  it("rejects a non-positive eventId", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.events.attendance({ eventId: 0 })).rejects.toThrow();
+    expect(mockGetEventAttendance).not.toHaveBeenCalled();
+  });
+});
+
+describe("events.setAttendance", () => {
+  it("sets the caller's status under their own id and returns the fresh summary", async () => {
+    mockSetEventAttendance.mockResolvedValue(undefined);
+    mockGetEventAttendance.mockResolvedValue({ interested: 1, going: 3, myStatus: "going" });
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    const result = await caller.events.setAttendance({ eventId: 7, status: "going" });
+    expect(result).toEqual({ interested: 1, going: 3, myStatus: "going" });
+    expect(mockSetEventAttendance).toHaveBeenCalledWith(1, 7, "going");
+  });
+
+  it("allows status null to clear the RSVP", async () => {
+    mockSetEventAttendance.mockResolvedValue(undefined);
+    mockGetEventAttendance.mockResolvedValue({ interested: 0, going: 2, myStatus: null });
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    const result = await caller.events.setAttendance({ eventId: 7, status: null });
+    expect(result.myStatus).toBeNull();
+    expect(mockSetEventAttendance).toHaveBeenCalledWith(1, 7, null);
+  });
+
+  it("rejects an unauthenticated caller before touching the db", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.events.setAttendance({ eventId: 7, status: "going" }),
+    ).rejects.toThrow(/Please login|UNAUTHORIZED/i);
+    expect(mockSetEventAttendance).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid status enum value", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.setAttendance({ eventId: 7, status: "maybe" as any }),
+    ).rejects.toThrow();
+    expect(mockSetEventAttendance).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-positive eventId", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.setAttendance({ eventId: -1, status: "going" }),
+    ).rejects.toThrow();
+    expect(mockSetEventAttendance).not.toHaveBeenCalled();
+  });
+});
+
+describe("events.attendanceCounts (public batched counts)", () => {
+  it("forwards the eventIds and returns the counts map", async () => {
+    mockGetEventAttendanceCounts.mockResolvedValue({
+      1: { interested: 2, going: 5 },
+      2: { interested: 0, going: 1 },
+    });
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.events.attendanceCounts({ eventIds: [1, 2] });
+    expect(result).toEqual({ 1: { interested: 2, going: 5 }, 2: { interested: 0, going: 1 } });
+    expect(mockGetEventAttendanceCounts).toHaveBeenCalledWith([1, 2]);
+  });
+
+  it("accepts an empty id list", async () => {
+    mockGetEventAttendanceCounts.mockResolvedValue({});
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.events.attendanceCounts({ eventIds: [] });
+    expect(result).toEqual({});
+  });
+
+  it("rejects more than one page of ids (URL-length guard)", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const tooMany = Array.from({ length: 501 }, (_, i) => i + 1);
+    await expect(caller.events.attendanceCounts({ eventIds: tooMany })).rejects.toThrow();
+    expect(mockGetEventAttendanceCounts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-positive id in the list", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.events.attendanceCounts({ eventIds: [1, 0, 3] })).rejects.toThrow();
+    expect(mockGetEventAttendanceCounts).not.toHaveBeenCalled();
   });
 });
 
