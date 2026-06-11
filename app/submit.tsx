@@ -27,6 +27,7 @@ import {
   JAPAN_CITIES,
 } from "@/shared/constants";
 import type { DanceStyle, EventType } from "@/shared/constants";
+import { formatEventDate } from "@/shared/types";
 
 // Server caps the decoded image at 600KB (under the 1MB request limit). Reject
 // client-side too so the user gets immediate feedback instead of a failed POST.
@@ -77,6 +78,32 @@ export default function SubmitScreen() {
   const [organizer, setOrganizer] = useState("");
   const [link, setLink] = useState(() => paramStr(params.link));
   const [image, setImage] = useState<{ base64: string; mimeType: ImageMime; uri: string } | null>(null);
+  // True while the pre-submission duplicate check is in flight (the submit
+  // button shows the same busy state as the mutation itself).
+  const [checking, setChecking] = useState(false);
+
+  // Tell the user their submission matches an existing listing, with a
+  // deep-link to it. Used by the pre-check and by the CONFLICT fallback below.
+  const showDuplicateAlert = (dup: {
+    id: number;
+    title: string;
+    startAt: string | Date;
+    matchedBy: "canonicalKey" | "venueDateKey";
+  }) => {
+    const startIso = typeof dup.startAt === "string" ? dup.startAt : dup.startAt.toISOString();
+    const how =
+      dup.matchedBy === "canonicalKey"
+        ? "an event with the same name on the same day"
+        : "an event at the same venue and start time";
+    Alert.alert(
+      "Already on the calendar?",
+      `Your submission matches ${how}: "${dup.title}" (${formatEventDate(startIso)}).`,
+      [
+        { text: "Keep Editing", style: "cancel" },
+        { text: "View Event", onPress: () => router.push(`/event/${dup.id}` as any) },
+      ],
+    );
+  };
 
   const submitMutation = trpc.events.submit.useMutation({
     onSuccess: () => {
@@ -85,7 +112,23 @@ export default function SubmitScreen() {
         { text: "OK", onPress: () => router.back() },
       ]);
     },
-    onError: (err) => {
+    onError: (err, variables) => {
+      if (err.data?.code === "CONFLICT") {
+        // The insert raced past the pre-check (or the check itself failed).
+        // Look the existing event up so the alert can still deep-link to it.
+        utils.events.checkDuplicate
+          .fetch({
+            title: variables.title,
+            startAt: variables.startAt,
+            venueName: variables.venueName,
+          })
+          .then((dup) => {
+            if (dup) showDuplicateAlert(dup);
+            else Alert.alert("Already listed", err.message);
+          })
+          .catch(() => Alert.alert("Already listed", err.message));
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       const needsAuth = /login|unauthor/i.test(msg);
       Alert.alert(
@@ -138,7 +181,7 @@ export default function SubmitScreen() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       Alert.alert("Missing title", "Please enter an event title.");
@@ -170,6 +213,26 @@ export default function SubmitScreen() {
         Alert.alert("Invalid link", "Please enter a valid URL, or leave it blank.");
         return;
       }
+    }
+
+    // Advisory duplicate pre-check: warn before submitting a doomed duplicate.
+    // Errors fall through to a normal submit — the server's UNIQUE indexes are
+    // the real guarantee, and a CONFLICT there is handled in onError.
+    setChecking(true);
+    try {
+      const dup = await utils.events.checkDuplicate.fetch({
+        title: trimmedTitle,
+        startAt,
+        venueName: venueName.trim() || undefined,
+      });
+      if (dup) {
+        showDuplicateAlert(dup);
+        return;
+      }
+    } catch {
+      // Best-effort only; proceed with the submission.
+    } finally {
+      setChecking(false);
     }
 
     submitMutation.mutate({
@@ -528,17 +591,17 @@ export default function SubmitScreen() {
           {/* Submit */}
           <Pressable
             onPress={handleSubmit}
-            disabled={submitMutation.isPending}
+            disabled={checking || submitMutation.isPending}
             style={({ pressed }) => [{
               marginTop: 24,
               backgroundColor: colors.primary,
               borderRadius: 12,
               padding: 14,
               alignItems: "center",
-              opacity: pressed || submitMutation.isPending ? 0.7 : 1,
+              opacity: pressed || checking || submitMutation.isPending ? 0.7 : 1,
             }]}
           >
-            {submitMutation.isPending ? (
+            {checking || submitMutation.isPending ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>Submit Event</Text>

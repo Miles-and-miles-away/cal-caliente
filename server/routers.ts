@@ -15,6 +15,7 @@ import {
   getUserPreferences,
   upsertUserPreferences,
   insertSubmittedEvent,
+  findDuplicateEvent,
   DuplicateEventError,
   getEventAttendance,
   setEventAttendance,
@@ -108,6 +109,18 @@ const eventSubmitInput = z
 // Decoded image must stay well under the 1MB Express body limit
 // (server/_core/index.ts) once base64 + JSON envelope overhead is added.
 const MAX_SUBMISSION_IMAGE_BYTES = 600 * 1024;
+
+// The dedup-relevant subset of `eventSubmitInput` (same field rules), for the
+// pre-submission duplicate probe.
+const eventCheckDuplicateInput = z
+  .object({
+    title: z.string().max(500).transform((s) => s.trim()).refine((s) => s.length >= 1, {
+      message: "Title is required",
+    }),
+    startAt: isoDate,
+    venueName: z.string().max(500).optional(),
+  })
+  .strict();
 
 const eventAttendanceInput = z.object({
   eventId: z.number().int().positive(),
@@ -219,6 +232,16 @@ export const appRouter = router({
     get: publicProcedure.input(eventGetInput).query(async ({ input }) => {
       return getEvent(input.id);
     }),
+    // Pre-submission duplicate probe: computes the same dedup keys as `submit`
+    // and returns the colliding event's summary (or null) so the form can point
+    // the user at the existing listing instead of letting them finish a doomed
+    // submission. Advisory only — the UNIQUE indexes behind `submit` are the
+    // real guarantee. Gated behind auth like `submit`, its only caller.
+    checkDuplicate: protectedProcedure
+      .input(eventCheckDuplicateInput)
+      .query(async ({ input }) => {
+        return findDuplicateEvent(input);
+      }),
     // Manual user submission. Gated behind auth and attributed to ctx.user.id;
     // the event is created `isVerified: false` and shows up for everyone via
     // the public `events.list`. Duplicates of an existing event are rejected

@@ -14,6 +14,7 @@ const mockGetRecentScrapeLogs = vi.fn();
 const mockGetUserPreferences = vi.fn();
 const mockUpsertUserPreferences = vi.fn();
 const mockInsertSubmittedEvent = vi.fn();
+const mockFindDuplicateEvent = vi.fn();
 const mockStoragePut = vi.fn();
 const mockGetEventAttendance = vi.fn();
 const mockSetEventAttendance = vi.fn();
@@ -38,6 +39,7 @@ vi.mock("../server/db", () => {
     getUserPreferences: mockGetUserPreferences,
     upsertUserPreferences: mockUpsertUserPreferences,
     insertSubmittedEvent: mockInsertSubmittedEvent,
+    findDuplicateEvent: mockFindDuplicateEvent,
     DuplicateEventError,
     getEventAttendance: mockGetEventAttendance,
     setEventAttendance: mockSetEventAttendance,
@@ -322,6 +324,75 @@ describe("events.submit", () => {
     await expect(caller.events.submit(validInput)).rejects.toThrow(
       /already on the calendar|CONFLICT/i,
     );
+  });
+});
+
+describe("events.checkDuplicate", () => {
+  const validInput = {
+    title: "  Saturday Salsa Social  ",
+    startAt: "2026-07-10T19:00:00+09:00",
+    venueName: "Club Salud",
+  };
+
+  it("returns the matched event summary, with the title trimmed before the probe", async () => {
+    const match = {
+      id: 42,
+      title: "Saturday Salsa Social",
+      startAt: new Date("2026-07-10T10:00:00Z"),
+      venueName: "Club Salud",
+      matchedBy: "canonicalKey" as const,
+    };
+    mockFindDuplicateEvent.mockResolvedValue(match);
+    const caller = appRouter.createCaller(makeAuthedCtx());
+
+    const result = await caller.events.checkDuplicate(validInput);
+
+    expect(result).toEqual(match);
+    expect(mockFindDuplicateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Saturday Salsa Social",
+        startAt: validInput.startAt,
+        venueName: "Club Salud",
+      }),
+    );
+  });
+
+  it("returns null when nothing matches", async () => {
+    mockFindDuplicateEvent.mockResolvedValue(null);
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(caller.events.checkDuplicate(validInput)).resolves.toBeNull();
+  });
+
+  it("rejects an unauthenticated caller before touching the db", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.events.checkDuplicate(validInput)).rejects.toThrow(
+      /Please login|UNAUTHORIZED/i,
+    );
+    expect(mockFindDuplicateEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty title (after trim)", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.checkDuplicate({ title: "   ", startAt: validInput.startAt }),
+    ).rejects.toThrow();
+    expect(mockFindDuplicateEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unparseable startAt", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.checkDuplicate({ title: "Foo", startAt: "next saturday" }),
+    ).rejects.toThrow();
+    expect(mockFindDuplicateEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown key (strict schema)", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.checkDuplicate({ ...validInput, description: "extra" } as any),
+    ).rejects.toThrow();
+    expect(mockFindDuplicateEvent).not.toHaveBeenCalled();
   });
 });
 

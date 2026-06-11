@@ -4,6 +4,7 @@ import {
   SUBMISSION_SOURCE_URL,
   computeCanonicalKey,
   computeVenueDateKey,
+  findDuplicateEventWithDb,
   getOrCreateSubmissionSourceWithDb,
   insertSubmittedEventWithDb,
   type SubmittedEventInput,
@@ -113,5 +114,54 @@ describe("insertSubmittedEventWithDb", () => {
     await expect(insertSubmittedEventWithDb(mockDb, input, 7)).rejects.toThrow(
       /connection reset/,
     );
+  });
+});
+
+describe("findDuplicateEventWithDb", () => {
+  const input = {
+    title: "Saturday Salsa Social",
+    startAt: "2026-07-10T19:00:00+09:00",
+    venueName: "Club Salud",
+  };
+  const existingRow = {
+    id: 42,
+    title: "(TOKYO) Saturday Salsa Social 2026",
+    startAt: new Date("2026-07-10T10:00:00Z"),
+    venueName: "Club Salud Shibuya",
+    canonicalKey: "abc",
+    venueDateKey: "def",
+  };
+
+  it("returns the existing event's summary on a canonicalKey (title+day) match", async () => {
+    selectResults.push([existingRow]); // canonicalKey lookup hits
+    const result = await findDuplicateEventWithDb(mockDb, input);
+    expect(result).toEqual({
+      id: 42,
+      title: existingRow.title,
+      startAt: existingRow.startAt,
+      venueName: existingRow.venueName,
+      matchedBy: "canonicalKey",
+    });
+  });
+
+  it("falls back to a venueDateKey (venue+hour) match when the title misses", async () => {
+    selectResults.push([]);            // canonicalKey lookup misses
+    selectResults.push([existingRow]); // venueDateKey lookup hits
+    const result = await findDuplicateEventWithDb(mockDb, input);
+    expect(result?.id).toBe(42);
+    expect(result?.matchedBy).toBe("venueDateKey");
+  });
+
+  it("returns null when neither key matches", async () => {
+    selectResults.push([]); // canonicalKey miss
+    selectResults.push([]); // venueDateKey miss
+    await expect(findDuplicateEventWithDb(mockDb, input)).resolves.toBeNull();
+  });
+
+  it("returns null on a title miss when no venue is given (no venueDateKey probe)", async () => {
+    selectResults.push([]); // canonicalKey miss; venueDateKey is null so no second lookup
+    await expect(
+      findDuplicateEventWithDb(mockDb, { title: input.title, startAt: input.startAt }),
+    ).resolves.toBeNull();
   });
 });

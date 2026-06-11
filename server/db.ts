@@ -425,6 +425,55 @@ async function applyMerge(
 // ─── User-submitted events ───────────────────────────────────────────────────
 
 /**
+ * Advisory duplicate probe for the submit form's pre-check. Computes the same
+ * dedup keys as `insertSubmittedEvent` and returns a summary of the colliding
+ * event (or null), so the UI can point the submitter at the existing listing
+ * before they finish the form. Read-only and best-effort — the UNIQUE indexes
+ * behind the insert remain the actual guarantee.
+ */
+export interface DuplicateEventMatch {
+  id: number;
+  title: string;
+  startAt: Date;
+  venueName: string | null;
+  matchedBy: "canonicalKey" | "venueDateKey";
+}
+
+export interface DuplicateCheckInput {
+  title: string;
+  startAt: string; // ISO-8601
+  venueName?: string | null;
+}
+
+export async function findDuplicateEvent(
+  input: DuplicateCheckInput,
+): Promise<DuplicateEventMatch | null> {
+  const db = await getDb();
+  if (!db) return null;
+  return findDuplicateEventWithDb(db, input);
+}
+
+// Takes the db explicitly so it's directly testable with a mock (cf.
+// `upsertEventWithDb`). `findDuplicateEvent` just resolves the db and delegates.
+export async function findDuplicateEventWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  input: DuplicateCheckInput,
+): Promise<DuplicateEventMatch | null> {
+  const startAt = new Date(input.startAt);
+  const canonicalKey = computeCanonicalKey(input.title, startAt);
+  const venueDateKey = computeVenueDateKey(input.venueName, startAt);
+  const existing = await findExistingEvent(db, canonicalKey, venueDateKey);
+  if (!existing) return null;
+  return {
+    id: existing.row.id,
+    title: existing.row.title,
+    startAt: existing.row.startAt,
+    venueName: existing.row.venueName,
+    matchedBy: existing.matchedBy,
+  };
+}
+
+/**
  * Thrown by `insertSubmittedEvent` when the event collides with an existing row
  * on a UNIQUE dedup key (canonicalKey / venueDateKey). The router maps this to a
  * CONFLICT so the submitter is told the event is already listed.
