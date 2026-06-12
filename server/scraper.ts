@@ -230,7 +230,7 @@ export class HtmlScraperAdapter implements ScraperAdapter {
 const MAX_ENRICHMENTS_PER_SCRAPE = 50;
 const ENRICHMENT_CONCURRENCY = 3;
 
-function needsEnrichment(ev: ScrapedEvent): boolean {
+export function needsEnrichment(ev: ScrapedEvent): boolean {
   // Listing pages typically give title/date/venue name. We need address +
   // coordinates for the map to be useful — if both are missing, the detail
   // page is worth a fetch.
@@ -239,7 +239,7 @@ function needsEnrichment(ev: ScrapedEvent): boolean {
   return !hasAddress || !hasCoords;
 }
 
-function isSameDomain(detailUrl: string, listingUrl: string): boolean {
+export function isSameDomain(detailUrl: string, listingUrl: string): boolean {
   try {
     return new URL(detailUrl).host === new URL(listingUrl).host;
   } catch {

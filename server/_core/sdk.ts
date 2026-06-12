@@ -104,7 +104,9 @@ const createOAuthHttpClient = (): AxiosInstance =>
     timeout: AXIOS_TIMEOUT_MS,
   });
 
-class SDKServer {
+// Exported so tests can construct an instance with a mocked axios client (the
+// app itself should only use the `sdk` singleton below).
+export class SDKServer {
   private readonly client: AxiosInstance;
   private readonly oauthService: OAuthService;
 

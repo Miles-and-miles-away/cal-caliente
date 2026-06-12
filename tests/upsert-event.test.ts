@@ -192,6 +192,23 @@ describe("mergeEventFields", () => {
     expect(merged.title).toBeUndefined();
     expect(merged.description).toBeUndefined();
   });
+
+  it("lets a re-scrape un-cancel an event (isCancelled is mergeable by design)", () => {
+    // Documented behavior, not an accident: isCancelled is deliberately NOT in
+    // MERGE_IMMUTABLE_FIELDS, so a source that re-lists an event as active
+    // flips it back. `false` is a boolean — meaningful — and must merge, unlike
+    // null/"" which are skipped. If cancellation should ever become sticky,
+    // this test is the conscious decision point.
+    const existing = makeRow({ isCancelled: true });
+    const incoming: InsertEvent = {
+      sourceId: 10,
+      title: "Existing event",
+      startAt: new Date(),
+      isCancelled: false,
+    };
+    const merged = mergeEventFields(existing, incoming);
+    expect(merged.isCancelled).toBe(false);
+  });
 });
 
 describe("upsertEvent — race recovery", () => {

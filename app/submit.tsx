@@ -19,6 +19,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useAuth } from "@/hooks/use-auth";
 import { startOAuthLogin } from "@/constants/oauth";
 import { trpc } from "@/lib/trpc";
+import { buildJstIso } from "@/lib/utils";
 import {
   DANCE_STYLES,
   DANCE_STYLE_LABELS,
@@ -37,16 +38,6 @@ const ALLOWED_IMAGE_MIME = ["image/jpeg", "image/png", "image/webp"] as const;
 type ImageMime = (typeof ALLOWED_IMAGE_MIME)[number];
 
 const CITY_CHIPS = JAPAN_CITIES.filter((c) => c.value);
-
-// Build a JST ISO-8601 string from a `YYYY-MM-DD` date and `HH:mm` time. Events
-// in this app are stored with the +09:00 offset. Returns null if either part is
-// malformed so the caller can show a validation message.
-function buildJstIso(dateStr: string, timeStr: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  if (!/^\d{2}:\d{2}$/.test(timeStr)) return null;
-  const iso = `${dateStr}T${timeStr}:00+09:00`;
-  return Number.isNaN(new Date(iso).getTime()) ? null : iso;
-}
 
 // Normalize an Expo Router param (string | string[] | undefined) to a single string.
 const paramStr = (v: string | string[] | undefined): string =>

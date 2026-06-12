@@ -307,6 +307,31 @@ describe("events.submit", () => {
     );
   });
 
+  it("maps a storage failure to INTERNAL_SERVER_ERROR without inserting the event", async () => {
+    mockStoragePut.mockRejectedValue(new Error("forge proxy down"));
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({
+        ...validInput,
+        image: { base64: "A".repeat(16_000), mimeType: "image/jpeg" },
+      }),
+    ).rejects.toThrow(/Image upload failed/);
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an image that decodes to zero bytes with BAD_REQUEST", async () => {
+    const caller = appRouter.createCaller(makeAuthedCtx());
+    await expect(
+      caller.events.submit({
+        ...validInput,
+        // "!!!" contains no valid base64 characters → empty buffer.
+        image: { base64: "!!!", mimeType: "image/jpeg" },
+      }),
+    ).rejects.toThrow(/could not be decoded/);
+    expect(mockStoragePut).not.toHaveBeenCalled();
+    expect(mockInsertSubmittedEvent).not.toHaveBeenCalled();
+  });
+
   it("rejects an oversized image with BAD_REQUEST and never uploads or inserts", async () => {
     const caller = appRouter.createCaller(makeAuthedCtx());
     // 820k base64 chars → ~615KB decoded, over the 600KB cap.

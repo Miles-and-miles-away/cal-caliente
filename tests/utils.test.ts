@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSafeExternalUrl } from "../lib/utils";
+import { buildJstIso, isSafeExternalUrl } from "../lib/utils";
 
 describe("isSafeExternalUrl", () => {
   it.each([
@@ -32,5 +32,27 @@ describe("isSafeExternalUrl", () => {
   it("rejects strings the URL parser cannot handle", () => {
     expect(isSafeExternalUrl("not a url")).toBe(false);
     expect(isSafeExternalUrl("://malformed")).toBe(false);
+  });
+});
+
+describe("buildJstIso (submit form date+time)", () => {
+  it("builds a JST-offset ISO string from valid parts", () => {
+    expect(buildJstIso("2026-07-10", "19:00")).toBe("2026-07-10T19:00:00+09:00");
+  });
+
+  it.each([
+    ["7/10/2026", "19:00"],
+    ["2026-7-10", "19:00"],
+    ["2026-07-10", "7pm"],
+    ["2026-07-10", "19:0"],
+    ["", "19:00"],
+    ["2026-07-10", ""],
+  ])("rejects malformed input (%s, %s)", (d, t) => {
+    expect(buildJstIso(d, t)).toBeNull();
+  });
+
+  it("rejects shapes that pass the regex but are not real dates/times", () => {
+    expect(buildJstIso("2026-13-45", "19:00")).toBeNull();
+    expect(buildJstIso("2026-07-10", "25:99")).toBeNull();
   });
 });

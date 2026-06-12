@@ -142,7 +142,7 @@ export async function getUserByOpenId(openId: string) {
 
 // ─── Event Queries ───────────────────────────────────────────────────────────
 
-export async function listEvents(params: {
+export interface ListEventsParams {
   danceStyle?: string;
   eventType?: string;
   city?: string;
@@ -151,10 +151,20 @@ export async function listEvents(params: {
   search?: string;
   limit?: number;
   offset?: number;
-}) {
+}
+
+export async function listEvents(params: ListEventsParams) {
   const db = await getDb();
   if (!db) return [];
+  return listEventsWithDb(db, params);
+}
 
+// Takes the db explicitly so it's directly testable with a mock (cf.
+// `upsertEventWithDb`); the public `listEvents` resolves the db and delegates.
+export async function listEventsWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  params: ListEventsParams,
+) {
   const conditions = [eq(events.isCancelled, false)];
 
   if (params.danceStyle && params.danceStyle !== "all") {
@@ -674,6 +684,17 @@ export async function toggleSource(
 ): Promise<SourceMutationResult> {
   const db = await getDb();
   if (!db) return "not_found";
+  return toggleSourceWithDb(db, id, isActive, actor);
+}
+
+// Takes the db explicitly so it's directly testable with a mock (cf.
+// `upsertEventWithDb`); the public `toggleSource` resolves the db and delegates.
+export async function toggleSourceWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  id: number,
+  isActive: boolean,
+  actor: SourceActor,
+): Promise<SourceMutationResult> {
   const auth = await authorizeSourceMutation(db, id, actor);
   if (auth.result !== "ok") return auth.result;
   await db.update(eventSources).set({ isActive }).where(eq(eventSources.id, id));
@@ -686,6 +707,14 @@ export async function deleteSource(
 ): Promise<SourceMutationResult> {
   const db = await getDb();
   if (!db) return "not_found";
+  return deleteSourceWithDb(db, id, actor);
+}
+
+export async function deleteSourceWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  id: number,
+  actor: SourceActor,
+): Promise<SourceMutationResult> {
   const auth = await authorizeSourceMutation(db, id, actor);
   if (auth.result !== "ok") return auth.result;
   // Default sources (isUserAdded=false) are never deletable, even by an admin —
@@ -764,12 +793,29 @@ const USER_PREF_FIELDS = [
 export async function upsertUserPreferences(userId: number, prefs: Record<string, unknown>) {
   const db = await getDb();
   if (!db) return;
+  return upsertUserPreferencesWithDb(db, userId, prefs);
+}
+
+// Takes the db explicitly so it's directly testable with a mock (cf.
+// `upsertEventWithDb`); the public `upsertUserPreferences` resolves and delegates.
+export async function upsertUserPreferencesWithDb(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  prefs: Record<string, unknown>,
+) {
   const safe: Record<string, unknown> = {};
   for (const field of USER_PREF_FIELDS) {
     if (field in prefs) safe[field] = prefs[field];
   }
-  const existing = await getUserPreferences(userId);
-  if (existing) {
+  // The router schema is fully partial, so `{}` is a legal payload. Nothing to
+  // write — bail before drizzle's `.set({})` throws "No values to set".
+  if (Object.keys(safe).length === 0) return;
+  const existing = await db
+    .select()
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1);
+  if (existing.length > 0) {
     await db.update(userPreferences).set(safe).where(eq(userPreferences.userId, userId));
   } else {
     await db.insert(userPreferences).values({ userId, ...safe } as any);

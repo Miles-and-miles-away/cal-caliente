@@ -67,3 +67,6 @@ Thumbs.db
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
+
+# Test coverage output
+coverage/

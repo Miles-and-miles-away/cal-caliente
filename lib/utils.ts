@@ -26,3 +26,13 @@ export function isSafeExternalUrl(input: unknown): input is string {
     return false;
   }
 }
+
+// Build a JST ISO-8601 string from a `YYYY-MM-DD` date and `HH:mm` time. Events
+// in this app are stored with the +09:00 offset. Returns null if either part is
+// malformed so the caller can show a validation message.
+export function buildJstIso(dateStr: string, timeStr: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  if (!/^\d{2}:\d{2}$/.test(timeStr)) return null;
+  const iso = `${dateStr}T${timeStr}:00+09:00`;
+  return Number.isNaN(new Date(iso).getTime()) ? null : iso;
+}
