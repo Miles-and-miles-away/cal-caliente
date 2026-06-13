@@ -52,7 +52,9 @@ type ExpectedIndex = { name: string; columns: string[]; isUnique: boolean };
 type ExpectedTable = { columns: string[]; indexes: ExpectedIndex[] };
 type ExpectedSchema = { tables: Record<string, ExpectedTable>; migrationCount: number };
 
-// ── DATABASE_URL → connection parts ───────────────────────────────────────────
+// We connect with the full DATABASE_URL string (preserves SSL/query params), so
+// this only extracts the database NAME for information_schema queries — plus
+// host/port for the confirmation banner.
 function parseDbUrl(raw: string) {
   let url: URL;
   try {
@@ -65,8 +67,6 @@ function parseDbUrl(raw: string) {
   return {
     host: url.hostname,
     port: url.port ? parseInt(url.port, 10) : 3306,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
     database,
   };
 }
@@ -78,7 +78,7 @@ function loadExpectedSchema(): ExpectedSchema {
     throw new Error(`Cannot find ${journalPath} — run from the repo root.`);
   }
   const journal = JSON.parse(readFileSync(journalPath, "utf8"));
-  const entries: Array<{ idx: number }> = journal.entries ?? [];
+  const entries: { idx: number }[] = journal.entries ?? [];
   if (entries.length === 0) throw new Error("Migration journal has no entries");
 
   const latestIdx = Math.max(...entries.map((e) => e.idx));
@@ -243,13 +243,11 @@ async function main() {
     }
 
     console.log("\n[1/3] Dropping all tables…");
-    const conn = await mysql.createConnection({
-      host: target.host,
-      port: target.port,
-      user: target.user,
-      password: target.password,
-      database: target.database,
-    });
+    // Connect with the FULL DATABASE_URL string (not decomposed host/user/etc.)
+    // so any ?ssl=… / TLS query params are honored — identical to how the app
+    // connects via drizzle(process.env.DATABASE_URL). Decomposing the URL drops
+    // those params and fails against TLS-requiring databases (e.g. TiDB Cloud).
+    const conn = await mysql.createConnection(dbUrl);
     try {
       await dropAllTables(conn, target.database);
     } finally {
@@ -264,13 +262,9 @@ async function main() {
   }
 
   console.log("\n[3/3] Verifying live schema against snapshot…");
-  const conn = await mysql.createConnection({
-    host: target.host,
-    port: target.port,
-    user: target.user,
-    password: target.password,
-    database: target.database,
-  });
+  // Full URL string (see note above) — preserves SSL/TLS params for the verify
+  // connection too.
+  const conn = await mysql.createConnection(dbUrl);
   let problems: string[];
   try {
     problems = await verifySchema(conn, target.database, expected);

@@ -5,6 +5,74 @@
 
 ---
 
+## 🔧 Manus runbook — populate `.env` + rebuild the DB (2026-06-13)
+
+**Why:** the `.env` system (`scripts/load-env.js` + `dotenv`) was added but **never
+populated on Manus**. That is the only blocker — not SSL, and not the app-secret list
+Manus guessed. `npm run db:reset` reads exactly **one** variable: `DATABASE_URL`.
+
+**Read before starting:**
+- **Step 0 is done by the repo owner on their machine — NOT by Manus.** Manus must
+  **never run `git commit` or `git push` in this repo** (it has corrupted history here
+  before). Manus starts at **step 1**, only after the owner has pushed and Manus has
+  run `git pull`.
+- Run **every** command from the **project root** (the folder containing `package.json`).
+- `db:reset` and `scrape:now` are safe to run more than once.
+
+0. [ ] **(Repo owner, local — not Manus.)** Commit & push `scripts/reset-db.ts`,
+   `scripts/scrape-now.ts`, and the new `package.json` scripts. Then on Manus: `git pull`.
+
+1. [ ] **Write `.env` from the injected env vars.** ⚠️ This OVERWRITES any existing `.env`.
+   ```bash
+   for k in DATABASE_URL JWT_SECRET OAUTH_SERVER_URL VITE_APP_ID OWNER_OPEN_ID \
+            BUILT_IN_FORGE_API_URL BUILT_IN_FORGE_API_KEY \
+            EXPO_PUBLIC_OAUTH_PORTAL_URL EXPO_PUBLIC_OAUTH_SERVER_URL EXPO_PUBLIC_APP_ID; do
+     v="$(printenv "$k")" && [ -n "$v" ] && printf '%s=%s\n' "$k" "$v"
+   done > .env
+   ```
+
+2. [ ] **Confirm `DATABASE_URL` is in `.env`:**
+   ```bash
+   grep '^DATABASE_URL=' .env || echo "MISSING"
+   ```
+   - If it prints the `DATABASE_URL=...` line → good, go to step 3.
+   - If it prints `MISSING` → add it by hand from the Manus Secrets panel (keep any
+     `?ssl=...` the DB needs — TiDB Cloud requires TLS), then re-run this check:
+     ```bash
+     echo 'DATABASE_URL=mysql://USER:PASS@HOST:4000/DBNAME?ssl={"rejectUnauthorized":true}' >> .env
+     ```
+
+3. [ ] **Test the connection + schema (changes nothing):**
+   ```bash
+   npm run db:reset -- --verify-only
+   ```
+   - **Success:** last line is `✅ Schema verified ...`.
+   - **If it fails to connect:** `DATABASE_URL` is wrong — fix step 2 and retry.
+
+4. [ ] **Rebuild the DB from migration 0000** (drops all tables, replays migrations, verifies):
+   ```bash
+   npm run db:reset -- --yes
+   ```
+   - **Success:** ends with `✅ Schema verified ...`. The DB is now **empty** (0 events,
+     0 sources) — that is expected; the next two steps refill it.
+
+5. [ ] **Restart the API server** (redeploy / restart the server process — whatever Manus
+   normally uses). Boot logs `[Seed] Ensured 14 default source(s)` — that line is what
+   re-creates the sources the reset wiped. Wait until the server is back up before step 6.
+
+6. [ ] **Populate events and verify, in one command:**
+   ```bash
+   npm run scrape:now
+   ```
+   - **Success:** the final line is `[Scraper] Cycle complete: N found, M added` with **N > 0**.
+   - `Error:` lines for individual sources above it are NORMAL (some feeds fail) — only
+     the `Cycle complete` summary matters.
+   - **If it prints `Found 0 active sources`:** the server restart in step 5 didn't seed —
+     repeat step 5, then re-run this.
+
+
+---
+
 ## 🔜 Up next (priority order)
  
 ### 1. ✅ User-submitted events — shipped v1.8 (manual form)
