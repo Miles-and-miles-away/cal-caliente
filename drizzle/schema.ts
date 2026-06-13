@@ -88,21 +88,34 @@ export type Event = typeof events.$inferSelect;
 export type InsertEvent = typeof events.$inferInsert;
 
 // ─── Event Sources ───────────────────────────────────────────────────────────
-export const eventSources = mysqlTable("event_sources", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  url: text("url").notNull(),
-  sourceType: mysqlEnum("sourceType", ["facebook", "instagram", "rss", "html", "custom"]).default("html").notNull(),
-  region: varchar("region", { length: 100 }).default("japan"),
-  isActive: boolean("isActive").default(true).notNull(),
-  isUserAdded: boolean("isUserAdded").default(false).notNull(),
-  // The user who added this source (null for seeded/default sources). Toggle
-  // and delete are scoped to the owner (or an admin) so a signed-in user can't
-  // disable the default scraper sources or tamper with another user's sources.
-  addedByUserId: int("addedByUserId"),
-  lastScrapedAt: timestamp("lastScrapedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+export const eventSources = mysqlTable(
+  "event_sources",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    // UNIQUE (see urlIdx): the startup seed and sources.add both INSERT IGNORE /
+    // rely on this key for idempotency — without it every server restart re-seeds
+    // the default sources. varchar(768) is the widest a utf8mb4 unique index
+    // allows (3072-byte cap); real source URLs are < 120 chars.
+    url: varchar("url", { length: 768 }).notNull(),
+    sourceType: mysqlEnum("sourceType", ["facebook", "instagram", "rss", "html", "custom"]).default("html").notNull(),
+    region: varchar("region", { length: 100 }).default("japan"),
+    isActive: boolean("isActive").default(true).notNull(),
+    isUserAdded: boolean("isUserAdded").default(false).notNull(),
+    // The user who added this source (null for seeded/default sources). Toggle
+    // and delete are scoped to the owner (or an admin) so a signed-in user can't
+    // disable the default scraper sources or tamper with another user's sources.
+    addedByUserId: int("addedByUserId"),
+    lastScrapedAt: timestamp("lastScrapedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    // One row per URL. Makes the idempotent seed actually idempotent and stops a
+    // user from registering the same source twice (sources.add maps the
+    // duplicate-key error to a friendly CONFLICT).
+    urlIdx: uniqueIndex("event_sources_url_idx").on(table.url),
+  }),
+);
 
 export type EventSource = typeof eventSources.$inferSelect;
 export type InsertEventSource = typeof eventSources.$inferInsert;

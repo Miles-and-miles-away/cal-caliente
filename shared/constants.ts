@@ -266,6 +266,12 @@ export const STORAGE_KEYS = {
 
 export const ALLOWED_URL_PROTOCOLS = ["https:", "http:"] as const;
 export const MAX_URL_LENGTH = 2048;
+// Event-source URLs are stored in a UNIQUE-indexed column (the seed and
+// sources.add rely on it for idempotency). MySQL caps a utf8mb4 unique index at
+// 3072 bytes = 768 chars, so the source-URL column and its validation are bound
+// to 768 (real source URLs are < 120 chars). Event image/sourceUrl stay TEXT at
+// MAX_URL_LENGTH since they are not indexed.
+export const MAX_SOURCE_URL_LENGTH = 768;
 export const MAX_SOURCE_NAME_LENGTH = 255;
 
 // ─── App Metadata ────────────────────────────────────────────────────────────

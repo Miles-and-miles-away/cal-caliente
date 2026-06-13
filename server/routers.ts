@@ -20,12 +20,14 @@ import {
   getEventAttendance,
   setEventAttendance,
   getEventAttendanceCounts,
+  isDuplicateKeyError,
   type SourceMutationResult,
 } from "./db";
 import { storagePut } from "./storage";
 import {
   ALLOWED_URL_PROTOCOLS,
   MAX_URL_LENGTH,
+  MAX_SOURCE_URL_LENGTH,
   MAX_SOURCE_NAME_LENGTH,
   API_MAX_PAGE_SIZE,
   DANCE_STYLES,
@@ -144,7 +146,7 @@ const sourceAddInput = z.object({
   url: z
     .string()
     .min(1)
-    .max(MAX_URL_LENGTH)
+    .max(MAX_SOURCE_URL_LENGTH)
     .url()
     .refine(
       (url) => {
@@ -347,14 +349,26 @@ export const appRouter = router({
       return listSources();
     }),
     add: protectedProcedure.input(sourceAddInput).mutation(async ({ ctx, input }) => {
-      await addSource({
-        name: input.name,
-        url: input.url,
-        sourceType: input.sourceType,
-        isUserAdded: true,
-        isActive: true,
-        addedByUserId: ctx.user.id,
-      });
+      try {
+        await addSource({
+          name: input.name,
+          url: input.url,
+          sourceType: input.sourceType,
+          isUserAdded: true,
+          isActive: true,
+          addedByUserId: ctx.user.id,
+        });
+      } catch (err) {
+        // The url column is UNIQUE: a re-add of an existing source surfaces as a
+        // duplicate-key error. Report it as a CONFLICT rather than a 500.
+        if (isDuplicateKeyError(err)) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "This source is already being tracked.",
+          });
+        }
+        throw err;
+      }
       return { success: true };
     }),
     toggle: protectedProcedure.input(sourceToggleInput).mutation(async ({ ctx, input }) => {

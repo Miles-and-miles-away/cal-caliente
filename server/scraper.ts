@@ -31,7 +31,7 @@ import {
   SCRAPER_USER_AGENT,
   SCRAPER_MAX_HTML_CHARS,
   ALLOWED_URL_PROTOCOLS,
-  MAX_URL_LENGTH,
+  MAX_SOURCE_URL_LENGTH,
 } from "../shared/constants";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ export interface ScraperAdapter {
 
 export function isValidScraperUrl(url: string): boolean {
   if (!url || typeof url !== "string") return false;
-  if (url.length > MAX_URL_LENGTH) return false;
+  if (url.length > MAX_SOURCE_URL_LENGTH) return false;
   try {
     const parsed = new URL(url);
     return ALLOWED_URL_PROTOCOLS.includes(parsed.protocol as any);
