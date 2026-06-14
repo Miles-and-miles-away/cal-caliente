@@ -20,8 +20,11 @@ import type { Request, Response, NextFunction } from "express";
 const DEV_ORIGIN_PATTERNS: RegExp[] = [
   /^https?:\/\/localhost(:\d+)?$/,
   /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  // Manus sandbox/preview: e.g. https://8081-abc123.region.manuspre.computer
-  /^https:\/\/\d+-[a-z0-9]+(\.[a-z0-9-]+)*\.manuspre\.computer$/,
+  // Manus sandbox/preview, e.g. https://8081-abc123.region.manuspre.computer
+  // or https://8081-ifa50z...-701a46f8.sg1.manus.computer. The sandbox id can
+  // contain hyphens, and the platform domain is manus.computer (older sandboxes
+  // used manuspre.computer) — match both.
+  /^https:\/\/\d+-[a-z0-9-]+(\.[a-z0-9-]+)*\.manus(pre)?\.computer$/,
 ];
 
 function parseEnvOrigins(): string[] {
