@@ -18,6 +18,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:reset": "tsx scripts/reset-db.ts",
     "scrape:now": "tsx scripts/scrape-now.ts",
+    "diagnose": "node scripts/diagnose.mjs",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "qr": "node scripts/generate_qr.mjs"
