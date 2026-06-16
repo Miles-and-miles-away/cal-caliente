@@ -1,7 +1,7 @@
 # Cal🔥Caliente — Project TODO & Roadmap
 
 **Last Audited:** 2026-06-10 (after v1.9: engagement RSVP + share extension)
-**Test Coverage:** 410 passing, 0 skipped
+**Test Coverage:** 549 passing, 7 skipped (556 total across 37 files)
 
 ---
 
@@ -331,7 +331,7 @@ only**, so nothing consumes the procedures yet. Deliberately *not* built:
 | Auth | Wired — OAuth login/logout UI live, mutations gated by `protectedProcedure` |
 | User-submitted events | Live — manual `events.submit` form, attributed + `isVerified=false` |
 | Engagement | Interested/Going RSVP with public counts (detail + per-card badges); share extension (native, dev-build only) |
-| Test files / tests | 23 / 410 passing, 0 skipped |
+| Test files / tests | 37 / 549 passing, 7 skipped |
 | Documentation files | 9 (some drift, see "Worth knowing") |
 | Open security issues | 0 in main code (the 3 auth-deferred items are now closed) |
 | Schema migrations | 7 files, applied locally (0006 = `submittedByUserId` + `event_attendance`, combined; apply to prod Manus-side) |

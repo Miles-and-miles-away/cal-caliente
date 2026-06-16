@@ -64,6 +64,7 @@ On first startup, the server automatically seeds the database with 10 default ev
 | [Security](./security.md) | Security practices, input validation, and hardening |
 | [Scraping Engine](./scraping.md) | Event scraping architecture, adapters, and scheduler |
 | [Deployment](./deployment.md) | Deployment, configuration, and environment variables |
+| [Diagnostics](./diagnostics.md) | Troubleshooting "the app shows no events" with `scripts/diagnose.mjs` |
 | [Audit Report](./audit.md) | Code audit findings and fixes applied |
 
 ---
