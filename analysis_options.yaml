@@ -1,0 +1,8 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - node_modules/**
+    - build/**
+    - functions/**
+    - "**/*.g.dart"

@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    // Grant once via Admin SDK: setCustomUserClaims(uid, { admin: true })
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    // Events: public read; creates go through callables/scraper (Admin SDK).
+    // Admin may update (cancel/uncancel) and delete from the in-app admin panel.
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if false;
+      allow update, delete: if isAdmin();
+
+      // RSVP: public read (count() aggregates for social proof), own doc write.
+      match /attendance/{uid} {
+        allow read: if true;
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status in ['interested', 'going'];
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Collection-group reads for the admin dashboard (RSVP totals, scrape
+    // health). Nested matches above don't apply to collection-group queries.
+    match /{path=**}/attendance/{uid} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/scrapeLogs/{logId} {
+      allow read: if isAdmin();
+    }
+
+    // Sources: public read. Create via registerSource callable only.
+    // Owner may toggle isActive; admin may toggle any. Owner or admin may
+    // delete user-added sources; seeded defaults stay (they would re-seed).
+    match /sources/{sourceId} {
+      allow read: if true;
+      allow create: if false;
+      allow update: if isAdmin()
+        || (signedIn()
+            && resource.data.addedByUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])
+            && request.resource.data.isActive is bool);
+      allow delete: if resource.data.isUserAdded == true
+        && (isAdmin()
+            || (signedIn() && resource.data.addedByUid == request.auth.uid));
+
+      match /scrapeLogs/{logId} {
+        allow read: if true;
+        allow write: if false;
+      }
+    }
+
+    // User doc: prefs + favorites, owner only. Admin may read (user list in
+    // the admin panel); deletion happens via the adminDeleteUser callable.
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      // Field checks are conditional on presence: a first-ever write from the
+      // Preferences screen sends only `prefs` (merge), and must not be denied.
+      allow write: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'favoriteEventIds', 'prefs', 'createdAt', 'updatedAt'])
+        && (!('favoriteEventIds' in request.resource.data)
+            || (request.resource.data.favoriteEventIds is list
+                && request.resource.data.favoriteEventIds.size() <= 1000))
+        && (!('prefs' in request.resource.data)
+            || request.resource.data.prefs is map);
+    }
+  }
+}
