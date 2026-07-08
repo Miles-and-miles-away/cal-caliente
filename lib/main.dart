@@ -37,9 +37,10 @@ Future<void> main() async {
     // Point Firestore at the emulator. persistenceEnabled:false keeps dev runs
     // on fresh emulator data and stops an empty offline cache from masking a
     // failed connection (fromCache=true hid a dead connection for ages).
-    // NOTE: the iOS simulator can't complete Firestore's gRPC connection to the
-    // emulator (auth/HTTP over the same loopback works, gRPC doesn't) — use
-    // Chrome (`-d chrome`) or a real device for emulator-backed Firestore.
+    // NOTE: the iOS simulator DOES work against the emulator (verified iOS 26.2,
+    // firebase-ios-sdk 12.15 / gRPC 1.69). If it shows no data, check the whole
+    // suite is up first — a dead auth emulator stalls the sign-in await below
+    // and looks exactly like a Firestore connection failure.
     FirebaseFirestore.instance.settings = Settings(
       host: '$host:8080',
       sslEnabled: false,

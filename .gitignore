@@ -1,72 +1,48 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
-node_modules/
-# Project uses pnpm (pnpm-lock.yaml is canonical). Don't track npm's lockfile
-# even if a contributor falls back to `npm install` due to a corepack bug.
-package-lock.json
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-.env
-
-# typescript
-*.tsbuildinfo
-
-app-example
-
-# generated native folders
-/ios
-/android
+# Flutter/Dart generated
+.dart_tool/
+/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+migrate_working_dir/
+app.*.symbols
+app.*.map.json
 
 # IDE
-.vscode/
+*.iml
+*.ipr
+*.iws
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
+
+# Node (functions, seed scripts)
+node_modules/
+package-lock.json
+
+# Firebase emulator local data
+.emulator-data/
+.emulator-data-snapshot/
 
 # Logs
 logs
 *.log
 
-# OS
+# macOS / OS
+.DS_Store
 Thumbs.db
 
-# Build files
-*.tgz
-*.tar.gz
-.cache/
-
-# Webdev artifacts (checkpoint zips, migrations, etc.)
-.webdev/
+# Secrets & local env
+.env
+.env*.local
+*.pem
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
 # Test coverage output
 coverage/

@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "249946896369",
+    "project_id": "cal-caliente",
+    "storage_bucket": "cal-caliente.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:249946896369:android:02ba028d279c28c461b650",
+        "android_client_info": {
+          "package_name": "com.calcaliente.cal_caliente"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "249946896369-vfflm67bb5sjt6mlbbsimlrnf9q54m0m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.calcaliente.cal_caliente",
+            "certificate_hash": "a1965f9eb8acd39a6386d7b540cf34e8a33fde5b"
+          }
+        },
+        {
+          "client_id": "249946896369-ffah4n4qbt56hi035t95jfme4thv9u3j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDipXhcwZ5gSWwveYglqpAuKdJGJtI-pv0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "249946896369-ffah4n4qbt56hi035t95jfme4thv9u3j.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "249946896369-7c5mos37dh1ste22ciola3jmo2lut9s9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.calcaliente.calCaliente"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

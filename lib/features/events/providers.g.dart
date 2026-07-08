@@ -324,7 +324,7 @@ final class DanceFilterProvider
   }
 }
 
-String _$danceFilterHash() => r'e13b69edb4cc24a2e755856c0894246570173a51';
+String _$danceFilterHash() => r'7c30e159ee9bbae38b0aafa53279e861ea63ae0d';
 
 abstract class _$DanceFilter extends $Notifier<Set<String>> {
   Set<String> build();
@@ -370,7 +370,7 @@ final class EventTypeFilterProvider
   }
 }
 
-String _$eventTypeFilterHash() => r'7c5aa367f7a5ce3522c0f2c3a21df378ea0dc210';
+String _$eventTypeFilterHash() => r'2f1165b6d55666dbc06b5011673908d5d26f4303';
 
 abstract class _$EventTypeFilter extends $Notifier<Set<String>> {
   Set<String> build();
@@ -415,7 +415,7 @@ final class CityFilterProvider extends $NotifierProvider<CityFilter, String> {
   }
 }
 
-String _$cityFilterHash() => r'f139cb1a2ca8c971e3553ee1c73602d921670d33';
+String _$cityFilterHash() => r'471b133913c0acca92da9f5ab0eee9432ca53873';
 
 abstract class _$CityFilter extends $Notifier<String> {
   String build();
