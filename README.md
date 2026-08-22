@@ -1,4 +1,4 @@
-# Cal Caliente (Flutter)
+# Cal Caliente
 
 Salsa & Bachata Japan event calendar — Flutter + Firebase sister repo of
 [`cal-caliente`](../cal-caliente) (Expo/RN + Express/tRPC + MySQL). Same stack
