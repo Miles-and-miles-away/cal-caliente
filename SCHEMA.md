@@ -1,6 +1,8 @@
 # Firestore schema (contract — keep functions, rules, app, and seed script in sync)
 
-Project: emulator-first, project id `demo-cal-caliente` (no real Firebase project yet).
+Project: development runs emulator-first against project id
+`demo-cal-caliente`. A real `cal-caliente` project is configured
+(`lib/firebase_options.dart`) but nothing is deployed to it yet.
 All timestamps are Firestore `Timestamp`. All enums are lowercase strings from the old
 Drizzle enums (see lib/core/constants.dart).
 
@@ -114,10 +116,11 @@ can't fire it. Rules grant admin: event update/delete, any-source toggle,
 user-added-source delete (seeded defaults protected), users read,
 collection-group attendance/scrapeLogs read.
 
-Local admin login (seeded by `npm run seed`): `admin@calcaliente.test` /
-`admintest123` — but the app has no email/password login UI yet; the
-integration test signs in programmatically. In production, grant the claim to
-your real account instead.
+Local admin login: `admin@calcaliente.test`, seeded only when
+`SEED_ADMIN_PASSWORD` is set (`SEED_ADMIN_PASSWORD=... npm run seed`). The same
+value goes to the app as `--dart-define=ADMIN_PASSWORD` for the debug swap
+button; `make run-ios` and `make itest` forward it. There is no email/password
+login UI. In production, grant the claim to your real account instead.
 
 ## Dropped from the RN app (deliberate)
 - image upload on submit (Storage surface; scraped imageUrl still displayed)
