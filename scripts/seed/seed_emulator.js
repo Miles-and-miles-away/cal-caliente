@@ -291,10 +291,18 @@ const SCRAPE_LOGS = [
 // panel and the integration test. Skipped (with a warning) if the Auth
 // emulator isn't running, so `emulators:exec --only firestore` still works.
 
-const ADMIN_EMAIL = 'admin@calcaliente.test';
-const ADMIN_PASSWORD = 'admintest123';
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@calcaliente.test';
+// No default: a committed password is a published password.
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 
 async function seedAdminUser() {
+  if (!ADMIN_PASSWORD) {
+    console.warn(
+      'SEED_ADMIN_PASSWORD unset, skipped admin user. ' +
+        'Set it to use the admin panel: SEED_ADMIN_PASSWORD=... npm run seed',
+    );
+    return;
+  }
   const auth = admin.auth();
   try {
     let user;

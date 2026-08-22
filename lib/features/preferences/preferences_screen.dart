@@ -8,6 +8,15 @@ import '../../core/constants.dart';
 import '../admin/admin_providers.dart';
 import '../events/providers.dart';
 
+// Debug-only admin swap (the button is gated on kDebugMode). Credentials come
+// from the build, not the source: must match what seed_emulator.js created.
+//   flutter run --dart-define=ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD
+// ignore: do_not_use_environment
+const _adminEmail = String.fromEnvironment('ADMIN_EMAIL',
+    defaultValue: 'admin@calcaliente.test');
+// ignore: do_not_use_environment
+const _adminPassword = String.fromEnvironment('ADMIN_PASSWORD');
+
 class PreferencesScreen extends ConsumerWidget {
   const PreferencesScreen({super.key});
 
@@ -66,11 +75,15 @@ class PreferencesScreen extends ConsumerWidget {
   Future<void> _debugSwap(
       BuildContext context, WidgetRef ref, User? user) async {
     final auth = FirebaseAuth.instance;
+    if (user?.isAnonymous == true && _adminPassword.isEmpty) {
+      _snack(context, 'Set --dart-define=ADMIN_PASSWORD to swap to admin.');
+      return;
+    }
     try {
       await auth.signOut();
       if (user?.isAnonymous == true) {
         await auth.signInWithEmailAndPassword(
-            email: 'admin@calcaliente.test', password: 'admintest123');
+            email: _adminEmail, password: _adminPassword);
       } else {
         await auth.signInAnonymously();
       }
