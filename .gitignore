@@ -20,7 +20,6 @@ app.*.map.json
 
 # Node (functions, seed scripts)
 node_modules/
-package-lock.json
 
 # Firebase emulator local data
 .emulator-data/

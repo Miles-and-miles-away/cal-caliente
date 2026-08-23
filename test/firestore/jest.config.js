@@ -5,6 +5,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>'],
   testMatch: ['**/*.rules.test.js'],
-  // Emulator round-trips are slower than pure-mock tests.
-  testTimeout: 15000,
+  // Generous: this also caps beforeAll, where initializeTestEnvironment loads
+  // the rules and intermittently took >15s (failing all 50 tests at once).
+  testTimeout: 60000,
 };

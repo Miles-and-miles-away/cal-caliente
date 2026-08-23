@@ -126,7 +126,22 @@ const EVENTS = [
     lat: 34.7003, lng: 135.4983, station: 'Umeda', price: '¥3,500', organizer: 'Yuki & Mario', src: 'salsavida-osaka',
     desc: 'Two-hour intensive on body waves and sensual musicality.' },
 
-  // ── upcoming (25) ──
+  // ── upcoming (27) ──
+  // Two CJK-titled fixtures: the app's dedup keys normalize Japanese
+  // punctuation and full-width characters, and the UI has to lay out mixed
+  // Japanese/latin titles. Invented events at invented venues.
+  { d: 1, h: 19, dur: 2, title: 'サルサ入門クラス（初級）', style: 'salsa', type: 'class',
+    city: 'Tokyo', pref: 'Tokyo', venue: 'スタジオ・ソル 三軒茶屋',
+    addr: '1-2-3 Sangenjaya, Setagaya-ku, Tokyo',
+    lat: 35.6433, lng: 139.6689, station: 'Sangenjaya', price: '¥2,000',
+    organizer: 'Studio Sol', src: 'meetup-tokyo-salsa-bachata-lessons',
+    desc: '初めての方向けのサルサ入門クラスです。基本ステップから丁寧に練習します。' },
+  { d: 3, h: 20, dur: 3, title: 'バチャータ・ソーシャル【第12回】', style: 'bachata', type: 'social',
+    city: 'Osaka', pref: 'Osaka', venue: 'バー・ルナ 心斎橋',
+    addr: '2-4-6 Shinsaibashisuji, Chuo-ku, Osaka',
+    lat: 34.6720, lng: 135.5010, station: 'Shinsaibashi', price: '¥1,800（1ドリンク付）',
+    organizer: 'Bar Luna', src: 'salsavida-osaka',
+    desc: '毎月第2土曜のバチャータ・ソーシャル。初心者歓迎、20時からレッスンあり。' },
   { d: 1, h: 21, dur: 4, title: 'Roppongi Salsa Social', style: 'salsa', type: 'social',
     city: 'Tokyo', pref: 'Tokyo', venue: 'Salsa Sudada Roppongi', addr: '7-13-8 Roppongi, Minato-ku, Tokyo',
     lat: 35.6627, lng: 139.7316, station: 'Roppongi', price: '¥1,000 + 1 drink',
@@ -291,10 +306,18 @@ const SCRAPE_LOGS = [
 // panel and the integration test. Skipped (with a warning) if the Auth
 // emulator isn't running, so `emulators:exec --only firestore` still works.
 
-const ADMIN_EMAIL = 'admin@calcaliente.test';
-const ADMIN_PASSWORD = 'admintest123';
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@calcaliente.test';
+// No default: a committed password is a published password.
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 
 async function seedAdminUser() {
+  if (!ADMIN_PASSWORD) {
+    console.warn(
+      'SEED_ADMIN_PASSWORD unset, skipped admin user. ' +
+        'Set it to use the admin panel: SEED_ADMIN_PASSWORD=... npm run seed',
+    );
+    return;
+  }
   const auth = admin.auth();
   try {
     let user;
