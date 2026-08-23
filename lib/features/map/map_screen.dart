@@ -73,8 +73,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.dispose();
   }
 
-  /// City-center fallback with the old app's golden-angle jitter so
-  /// same-city pins don't stack. Ported from lib/map-html.ts.
+  /// City-center fallback with golden-angle jitter so same-city pins
+  /// don't stack (carried over from the pre-rewrite web app).
   (LatLng, bool)? _position(Event e) {
     if (e.hasCoords) return (LatLng(e.latitude!, e.longitude!), false);
     final center = cityCoordinates[e.city];

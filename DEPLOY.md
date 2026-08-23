@@ -123,7 +123,7 @@ confused with a permissions failure: deploy, confirm working, remove Editor,
 redeploy, confirm still working.
 
 Before narrowing, read which service account the deployed functions actually
-run as. All four functions are 2nd gen (`firebase-functions/v2`), and 2nd gen
+run as. All five functions are 2nd gen (`firebase-functions/v2`), and 2nd gen
 can default to the Compute Engine default service account rather than the App
 Engine one. The deployed function's own configuration is the authority here.
 

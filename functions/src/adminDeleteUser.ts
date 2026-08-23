@@ -38,7 +38,7 @@ export const adminDeleteUser = onCall(
     refs.push(...sources.docs.map((d) => d.ref));
 
     // RSVPs live at events/{id}/attendance/{uid} — keyed by uid, so finding
-    // them means probing every event. ponytail: O(events) getAll scan; fine at
+    // them means probing every event. O(events) getAll scan; fine at
     // hundreds of events, move to a uid field + collection-group query if the
     // events collection ever grows past ~10k.
     const events = await db.collection("events").select().get();

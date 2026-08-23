@@ -1,5 +1,5 @@
 name: cal_caliente
-description: "Cal Caliente — Salsa & Bachata Japan event calendar (Flutter + Firebase sister of cal-caliente)."
+description: "Cal Caliente: Salsa & Bachata event calendar for Japan (Flutter + Firebase)."
 publish_to: 'none'
 version: 0.1.0
 
@@ -24,8 +24,8 @@ dependencies:
   intl: ^0.20.2
   url_launcher: ^6.3.0
   table_calendar: ^3.1.2
-  # ponytail: flutter_map (OSM tiles, same as the old app's Leaflet map) instead of
-  # google_maps_flutter — no API key, no billing surface, works on emulators today.
+  # flutter_map (OSM tiles, same as the old app's Leaflet map) instead of
+  # google_maps_flutter: no API key, no billing surface, works on emulators today.
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
   firebase_app_check: ^0.4.5
