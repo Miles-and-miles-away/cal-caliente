@@ -58,10 +58,25 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
         '${d.minute.toString().padLeft(2, '0')}:00+09:00';
   }
 
+  /// A 21:00-02:00 social ends the next day; roll the date when the end time
+  /// is at or before the start time.
+  DateTime _endDate() {
+    final s = _time!, e = _endTime!;
+    final overnight =
+        e.hour < s.hour || (e.hour == s.hour && e.minute <= s.minute);
+    return overnight ? _date!.add(const Duration(days: 1)) : _date!;
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_date == null || _time == null) {
       _snack('Pick a date and start time');
+      return;
+    }
+    if (_endTime != null &&
+        _endTime!.hour == _time!.hour &&
+        _endTime!.minute == _time!.minute) {
+      _snack('End time is the same as the start time');
       return;
     }
     setState(() => _busy = true);
@@ -69,7 +84,7 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
       await ref.read(functionsProvider).httpsCallable('submitEvent').call({
         'title': _title.text.trim(),
         'startAt': _jstIso(_date!, _time!),
-        if (_endTime != null) 'endAt': _jstIso(_date!, _endTime!),
+        if (_endTime != null) 'endAt': _jstIso(_endDate(), _endTime!),
         if (_description.text.trim().isNotEmpty)
           'description': _description.text.trim(),
         'danceStyle': _danceStyle,

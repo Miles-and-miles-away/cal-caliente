@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { logger } from "firebase-functions";
 import { DANCE_STYLES, EVENT_TYPES } from "./constants";
+import { isSafeUrl } from "./icalParser";
 import type { ScrapedEvent } from "./types";
 
 // ─── HTML → events via Gemini Flash ─────────────────────────────────────────
@@ -133,7 +134,10 @@ export interface ExtractInput {
 }
 
 export function buildPrompt({ html, sourceUrl, sourceName, now }: ExtractInput): string {
-  const today = now.toISOString();
+  // Shift to JST before formatting: the daily run fires 03:00 JST = 18:00Z the
+  // previous day, and a UTC instant under a "(JST)" label made the model treat
+  // "today" as yesterday at the date boundary.
+  const today = new Date(now.getTime() + 9 * 3600_000).toISOString().replace("Z", "+09:00");
   return `You extract Latin-dance event listings from web pages for a Japan-focused calendar.
 
 Source URL: ${sourceUrl}
@@ -264,7 +268,9 @@ export function filterAndNormalizeLlmEvents(
     price: ev.price ?? undefined,
     organizer: ev.organizer ?? undefined,
     description: ev.description ?? undefined,
-    sourceUrl: ev.sourceUrl ?? undefined,
+    // LLM output is untrusted; same http(s)-only guard as the iCal path.
+    // Length is already capped by the schema (2048).
+    sourceUrl: isSafeUrl(ev.sourceUrl) ? ev.sourceUrl : undefined,
     externalId: ev.externalId ?? undefined,
     endAt: ev.endAt ?? undefined,
   }));

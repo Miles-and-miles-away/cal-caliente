@@ -153,12 +153,18 @@ class Actions {
       .collection('users')
       .doc(_ref.read(uidProvider));
 
-  Map<String, dynamic> _userBase() => {
-        'prefs': _ref.read(userPrefsProvider),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': _ref.read(userDocProvider).value?['createdAt'] ??
-            FieldValue.serverTimestamp(),
-      };
+  // createdAt only once the doc stream has emitted: a write racing the first
+  // emission must not stamp a fresh createdAt over an existing one.
+  Map<String, dynamic> _userBase() {
+    final userDoc = _ref.read(userDocProvider);
+    return {
+      'prefs': _ref.read(userPrefsProvider),
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (userDoc.hasValue)
+        'createdAt':
+            userDoc.value?['createdAt'] ?? FieldValue.serverTimestamp(),
+    };
+  }
 
   Future<void> toggleFavorite(String eventId, bool save) async {
     try {

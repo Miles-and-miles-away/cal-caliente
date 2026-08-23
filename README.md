@@ -70,6 +70,9 @@ hour precision (the 7pm class is not the 9pm social).
 Known gap: `normalize("NFC")` preserves full-width Latin, so `ＴＯＫＹＯ` and
 `TOKYO` produce different keys. `NFKC` would fold them, but `canonicalKey` is
 the Firestore document id, so changing it is a migration rather than an edit.
+The day boundary has the same constraint: title keys slice the UTC day, so a
+JST event before 09:00 keys to the previous calendar day; anchoring it to JST
+is likewise a migration.
 
 Locale plumbing is provisioned for `en`/`ja`/`es` (`lib/app/app.dart`), which
 today localizes framework widgets and date semantics. App strings are still
@@ -126,7 +129,7 @@ integration tests only; `make purge-demo` removes them.
 ```bash
 make test                       # Dart unit tests
 make test-rules                 # 53 Firestore rules tests (jest + rules-unit-testing)
-cd functions && npm test        # 65 functions unit tests
+cd functions && npm test        # 73 functions unit tests
 make itest DEVICE=<device-id>   # end-to-end smoke (run `make seed-demo` first)
 ```
 

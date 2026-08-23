@@ -32,12 +32,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
   _MapRange _range = _MapRange.upcoming;
 
-  bool _inRange(DateTime t) {
+  bool _inRange(Event e) {
+    final t = e.startAt;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return switch (_range) {
-      _MapRange.upcoming =>
-        t.isAfter(now) && t.isBefore(today.add(const Duration(days: 60))),
+      // End-aware, matching Discover: in-progress events keep their pin.
+      _MapRange.upcoming => (e.endAt ?? t).isAfter(now) &&
+          t.isBefore(today.add(const Duration(days: 60))),
       _MapRange.today =>
         !t.isBefore(today) && t.isBefore(today.add(const Duration(days: 1))),
       _MapRange.tomorrow => !t.isBefore(today.add(const Duration(days: 1))) &&
@@ -111,10 +113,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     final events = focused != null
         ? [focused]
-        : ref
-            .watch(filteredEventsProvider)
-            .where((e) => _inRange(e.startAt))
-            .toList();
+        : ref.watch(filteredEventsProvider).where(_inRange).toList();
 
     final markers = <Marker>[];
     var approxCount = 0;

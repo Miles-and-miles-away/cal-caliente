@@ -60,7 +60,8 @@ Future<bool> confirmDestructive(
   return ok == true;
 }
 
-String _tail(String id) => id.substring(id.length - 4).toUpperCase();
+String _tail(String id) =>
+    (id.length <= 4 ? id : id.substring(id.length - 4)).toUpperCase();
 
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});

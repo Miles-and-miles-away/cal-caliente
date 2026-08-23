@@ -36,6 +36,35 @@ describe("filterAndNormalizeLlmEvents", () => {
     expect(out.price).toBeUndefined();
     expect(out.endAt).toBeUndefined();
   });
+
+  it("drops a non-http(s) sourceUrl but keeps the event", () => {
+    const [out] = filterAndNormalizeLlmEvents(
+      [
+        {
+          title: "Social",
+          startAt: "2026-08-02T19:00:00+09:00",
+          sourceUrl: "javascript:alert(1)",
+        },
+      ],
+      now,
+    );
+    expect(out.title).toBe("Social");
+    expect(out.sourceUrl).toBeUndefined();
+  });
+
+  it("keeps a valid https sourceUrl verbatim, fragment included", () => {
+    const [out] = filterAndNormalizeLlmEvents(
+      [
+        {
+          title: "Social",
+          startAt: "2026-08-02T19:00:00+09:00",
+          sourceUrl: "https://example.com/calendar#/events/1",
+        },
+      ],
+      now,
+    );
+    expect(out.sourceUrl).toBe("https://example.com/calendar#/events/1");
+  });
 });
 
 describe("parseLlmResponse", () => {
@@ -81,7 +110,9 @@ describe("buildPrompt", () => {
     });
     expect(prompt).toContain("https://example.com/events");
     expect(prompt).toContain("Example Venue");
-    expect(prompt).toContain(now.toISOString());
+    // The "(JST)" label must carry a JST-rendered instant, not a UTC one:
+    // now is 2026-08-01T00:00 JST, which is still 2026-07-31 in UTC.
+    expect(prompt).toContain("2026-08-01T00:00:00.000+09:00");
     expect(prompt).toContain("<p>salsa night</p>");
   });
 });

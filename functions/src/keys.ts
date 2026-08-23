@@ -24,6 +24,10 @@ export function normalizeTitleForKey(title: string): string {
     .trim();
 }
 
+// Known gap: the day boundary is UTC, so a JST event before 09:00 keys to the
+// previous calendar day and can miss a cross-source match. Moving the boundary
+// to JST changes every document id, i.e. a migration (see the NFC/NFKC note
+// in the README), so it stays UTC for now.
 export function computeCanonicalKey(title: string, startAt: Date | string): string {
   const t = normalizeTitleForKey(title);
   const date = (startAt instanceof Date ? startAt : new Date(startAt))

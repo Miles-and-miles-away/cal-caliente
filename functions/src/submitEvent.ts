@@ -58,7 +58,11 @@ const submitEventInput = z
     organizer: z.string().max(300).optional(),
     sourceUrl: httpUrl.optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => !v.endAt || Date.parse(v.endAt) > Date.parse(v.startAt), {
+    message: "endAt must be after startAt",
+    path: ["endAt"],
+  });
 
 export type SubmitEventInput = z.infer<typeof submitEventInput>;
 

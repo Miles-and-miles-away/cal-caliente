@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'event_card.dart';
+import 'event_model.dart';
 import 'providers.dart';
 
 enum _DateRange { upcoming, thisWeek, thisMonth, pastMonth, all }
@@ -26,12 +27,15 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   String _search = '';
   _DateRange _range = _DateRange.upcoming;
 
-  bool _inRange(DateTime t) {
+  bool _inRange(Event e) {
+    final t = e.startAt;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return switch (_range) {
-      _DateRange.upcoming =>
-        t.isAfter(today) && t.isBefore(today.add(const Duration(days: 60))),
+      // End-aware: "Upcoming" drops finished events but keeps in-progress
+      // ones (a multi-day festival mid-run must not vanish).
+      _DateRange.upcoming => (e.endAt ?? t).isAfter(now) &&
+          t.isBefore(today.add(const Duration(days: 60))),
       _DateRange.thisWeek => t.isAfter(today) &&
           t.isBefore(today.add(Duration(days: 8 - now.weekday))),
       _DateRange.thisMonth =>
@@ -47,7 +51,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final all = ref.watch(filteredEventsProvider);
     final q = _search.trim().toLowerCase();
     final results = all
-        .where((e) => _inRange(e.startAt))
+        .where(_inRange)
         .where((e) =>
             q.isEmpty ||
             e.title.toLowerCase().contains(q) ||

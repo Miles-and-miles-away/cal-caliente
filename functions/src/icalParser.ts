@@ -211,7 +211,7 @@ export function parseLocation(raw: string | null | undefined): {
 }
 
 // Only http(s) URLs are safe to store as sourceUrl.
-function isSafeUrl(input: unknown): input is string {
+export function isSafeUrl(input: unknown): input is string {
   if (typeof input !== "string" || input.length === 0) return false;
   try {
     const u = new URL(input);
@@ -226,6 +226,29 @@ interface ParseIcalOptions {
   now?: Date;
   /** How far ahead to expand RRULEs. Default 60 days. */
   windowDays?: number;
+}
+
+// A TZID without an accompanying VTIMEZONE in the feed (seen in the wild,
+// though RFC 5545 requires one) falls back to floating time in the runner's
+// zone — UTC on Cloud Functions, a 9-hour shift on every event. Japan has no
+// DST, so a fixed +09:00 Asia/Tokyo registration is exact.
+if (!ICAL.TimezoneService.has("Asia/Tokyo")) {
+  const vtz = new ICAL.Component(
+    ICAL.parse(
+      [
+        "BEGIN:VTIMEZONE",
+        "TZID:Asia/Tokyo",
+        "BEGIN:STANDARD",
+        "DTSTART:19700101T000000",
+        "TZOFFSETFROM:+0900",
+        "TZOFFSETTO:+0900",
+        "TZNAME:JST",
+        "END:STANDARD",
+        "END:VTIMEZONE",
+      ].join("\r\n"),
+    ),
+  );
+  ICAL.TimezoneService.register(new ICAL.Timezone(vtz));
 }
 
 export function parseIcal(
@@ -342,8 +365,10 @@ export function parseIcal(
       while (next && safety-- > 0) {
         const start = next.toJSDate();
         if (start.getTime() > windowEnd) break;
-        if (start.getTime() >= windowStart) {
-          const end = durationMs > 0 ? new Date(start.getTime() + durationMs) : null;
+        const end = durationMs > 0 ? new Date(start.getTime() + durationMs) : null;
+        // Overlap, matching the other branches: an occurrence that already
+        // started but has not ended stays.
+        if ((end?.getTime() ?? start.getTime()) >= windowStart) {
           events.push({
             externalId: uid ? `${uid}@${start.toISOString()}` : undefined,
             title: summary,
@@ -372,8 +397,11 @@ export function parseIcal(
     } else {
       const start = event.startDate?.toJSDate();
       if (!start) continue;
-      if (start.getTime() < windowStart || start.getTime() > windowEnd) continue;
       const end = event.endDate?.toJSDate();
+      // Overlap test, same as the all-day branch: an event that already
+      // started but is still running (multi-day festival) must not vanish.
+      const endMs = end?.getTime() ?? start.getTime();
+      if (start.getTime() > windowEnd || endMs < windowStart) continue;
       events.push({
         externalId: uid ?? undefined,
         title: summary,
