@@ -18,6 +18,60 @@ that rules, functions, app, and seed script are all kept in sync against.
 `lib/firebase_options.dart`, but nothing is deployed to it yet, and Google/Apple
 sign-in is not wired up (auth is anonymous-only).
 
+## Screenshots
+
+Running against the local emulator suite. The data is the synthetic
+fixture set from `make seed-demo`: invented events at invented venues, so
+no real organizer's listing or description appears here.
+
+| Calendar | Discover | Map | Event detail |
+|---|---|---|---|
+| ![Calendar](docs/screenshots/calendar.png) | ![Discover](docs/screenshots/discover.png) | ![Map](docs/screenshots/map.png) | ![Event detail](docs/screenshots/event-detail.png) |
+
+Month grid with a dot per event coloured by dance style; full-text search across
+titles, venues, and organizers behind four filter axes; OpenStreetMap pins with
+a count of how many are city-approximate rather than geocoded; and a detail view
+with RSVP counts and a deep link out to the venue on a map. Mixed
+Japanese/latin text throughout, which the dedup keys in `functions/src/keys.ts`
+normalize with Unicode property classes rather than ASCII assumptions.
+
+## English and Japanese
+
+Event listings arrive in both languages, because the sources do: Japanese venue
+schedules and English-language Meetup groups feed the same calendar. Content is
+bilingual; the UI is English for now, with more languages to come.
+
+| Japanese listing | English listing |
+|---|---|
+| ![Japanese event detail](docs/screenshots/event-detail.png) | ![English event detail](docs/screenshots/event-detail-en.png) |
+
+Mixed scripts are a data problem before they are a display problem. Two sources
+describing one event rarely agree on punctuation, so the dedup keys in
+`functions/src/keys.ts` normalize with Unicode property classes rather than
+ASCII assumptions, collapsing every non-letter, non-number run to a single
+space:
+
+```
+"バチャータ・ソーシャル【第12回】"  ->  "バチャータ ソーシャル 第12回"
+"サルサ入門クラス（初級）"          ->  "サルサ入門クラス 初級"
+"Tokyo　Salsa　Night"  (U+3000)     ->  "tokyo salsa night"
+"(JAPAN) Tokyo Salsa Night 2026"    ->  "tokyo salsa night"
+```
+
+Ideographic brackets, the katakana middle dot, full-width spaces, bracketed
+prefixes, and year suffixes all fold away, so the same event reported by a
+Japanese blog and an English Meetup page collapses to one document. Titles are
+keyed at day precision (multi-day festivals must still match) and venues at
+hour precision (the 7pm class is not the 9pm social).
+
+Known gap: `normalize("NFC")` preserves full-width Latin, so `ＴＯＫＹＯ` and
+`TOKYO` produce different keys. `NFKC` would fold them, but `canonicalKey` is
+the Firestore document id, so changing it is a migration rather than an edit.
+
+Locale plumbing is provisioned for `en`/`ja`/`es` (`lib/app/app.dart`), which
+today localizes framework widgets and date semantics. App strings are still
+English-only; ARB-based localization is the follow-up.
+
 ## Worth a look
 
 If you are reading this as a code sample, these three files carry the most
