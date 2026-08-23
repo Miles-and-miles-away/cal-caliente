@@ -1,4 +1,5 @@
 import ICAL from "ical.js";
+import { logger } from "firebase-functions";
 import type { ScrapedEvent } from "./types";
 import type { DanceStyle, EventType } from "./constants";
 
@@ -242,7 +243,7 @@ export function parseIcal(
     const root = new ICAL.Component(jcal);
     vevents = root.getAllSubcomponents("vevent");
   } catch (err) {
-    console.warn(`[Scraper:iCal] Failed to parse: ${(err as Error).message}`);
+    logger.warn(`[Scraper:iCal] Failed to parse: ${(err as Error).message}`);
     return [];
   }
   if (!Array.isArray(vevents) || vevents.length === 0) return [];
@@ -284,7 +285,7 @@ export function parseIcal(
       if (event.isRecurring()) {
         // Recurring all-day events are rare in these feeds and would need
         // RRULE-on-DATE expansion; ingest the first occurrence and flag it.
-        console.warn(
+        logger.warn(
           `[Scraper:iCal] All-day recurring event "${summary}" — ingesting only the first occurrence.`,
         );
       }
@@ -363,7 +364,7 @@ export function parseIcal(
       // windowEnd check, we may have missed legitimate occurrences. Log loudly
       // so we notice — for FREQ=HOURLY or shorter, the budget is too small.
       if (safety <= 0) {
-        console.warn(
+        logger.warn(
           `[Scraper:iCal] Safety counter (${SAFETY_LIMIT}) exhausted while expanding ` +
             `RRULE for "${summary}". Some occurrences in the window may be missing.`,
         );

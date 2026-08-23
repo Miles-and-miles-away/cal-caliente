@@ -28,8 +28,7 @@ Future<void> _openSourceUrl(BuildContext context, Uri uri) async {
         children: [
           const Text('This opens a site outside the app:'),
           const SizedBox(height: 8),
-          Text(uri.host,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(uri.host, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(uri.toString(),
               style: Theme.of(ctx).textTheme.bodySmall,
@@ -73,10 +72,10 @@ class EventDetailScreen extends ConsumerWidget {
     final eventAsync = ref.watch(eventByIdProvider(eventId));
 
     return eventAsync.when(
-      loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(
-          appBar: AppBar(), body: Center(child: Text('Error: $e'))),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) =>
+          Scaffold(appBar: AppBar(), body: Center(child: Text('Error: $e'))),
       data: (event) {
         if (event == null) {
           return Scaffold(
@@ -162,7 +161,8 @@ class _EventDetail extends ConsumerWidget {
                     backgroundColor: color.withValues(alpha: 0.15),
                     labelStyle: TextStyle(color: color),
                   ),
-                  Chip(label: Text(eventTypeLabels[event.eventType] ?? 'Other')),
+                  Chip(
+                      label: Text(eventTypeLabels[event.eventType] ?? 'Other')),
                   if (event.isVerified)
                     const Chip(
                       avatar: Icon(Icons.verified, size: 16),
@@ -231,7 +231,8 @@ class _EventDetail extends ConsumerWidget {
                       ? FilledButton.styleFrom(backgroundColor: color)
                       : null,
                   icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border),
-                  label: Text(saved ? 'Saved to My Calendar' : 'Save to My Calendar'),
+                  label: Text(
+                      saved ? 'Saved to My Calendar' : 'Save to My Calendar'),
                   onPressed: () => actions.toggleFavorite(event.id, !saved),
                 ),
                 const SizedBox(height: 12),

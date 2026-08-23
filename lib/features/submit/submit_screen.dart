@@ -34,8 +34,14 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
   @override
   void dispose() {
     for (final c in [
-      _title, _description, _venueName, _venueAddress, _station, _price,
-      _organizer, _sourceUrl,
+      _title,
+      _description,
+      _venueName,
+      _venueAddress,
+      _station,
+      _price,
+      _organizer,
+      _sourceUrl,
     ]) {
       c.dispose();
     }
@@ -158,9 +164,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.schedule),
-                  label: Text(_time == null
-                      ? 'Start *'
-                      : _time!.format(context)),
+                  label:
+                      Text(_time == null ? 'Start *' : _time!.format(context)),
                   onPressed: () async {
                     final t = await showTimePicker(
                         context: context,
@@ -173,8 +178,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.schedule_outlined),
-                  label:
-                      Text(_endTime == null ? 'End' : _endTime!.format(context)),
+                  label: Text(
+                      _endTime == null ? 'End' : _endTime!.format(context)),
                   onPressed: () async {
                     final t = await showTimePicker(
                         context: context,
@@ -229,8 +234,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
             TextFormField(
               controller: _price,
               maxLength: 200,
-              decoration:
-                  const InputDecoration(labelText: 'Price (e.g. ¥1500 + drink)'),
+              decoration: const InputDecoration(
+                  labelText: 'Price (e.g. ¥1500 + drink)'),
             ),
             TextFormField(
               controller: _organizer,

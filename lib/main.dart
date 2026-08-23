@@ -32,8 +32,7 @@ Future<void> main() async {
           : DefaultFirebaseOptions.currentPlatform);
 
   if (_useEmulator) {
-    final host =
-        emulatorHost(isWeb: kIsWeb, platform: defaultTargetPlatform);
+    final host = emulatorHost(isWeb: kIsWeb, platform: defaultTargetPlatform);
     // Point Firestore at the emulator. persistenceEnabled:false keeps dev runs
     // on fresh emulator data and stops an empty offline cache from masking a
     // failed connection (fromCache=true hid a dead connection for ages).
@@ -54,8 +53,9 @@ Future<void> main() async {
   // App Check attests that callable requests come from a genuine build of the
   // app. Debug providers in the emulator; Play Integrity / App Attest in
   // release. Web is skipped unless a reCAPTCHA site key was supplied. The
-  // callables enforce App Check (ENFORCE_APP_CHECK=true), so the emulator build
-  // needs the debug provider too — do not skip it.
+  // callables only enforce tokens once ENFORCE_APP_CHECK=true is set in the
+  // functions environment (off by default; see DEPLOY.md), but the client
+  // always attaches them so enforcement can be flipped on server-side.
   if (!kIsWeb || _recaptchaSiteKey.isNotEmpty) {
     await FirebaseAppCheck.instance.activate(
       providerAndroid: _useEmulator

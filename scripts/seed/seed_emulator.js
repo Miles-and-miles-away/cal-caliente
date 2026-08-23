@@ -110,7 +110,7 @@ const SOURCES = [
 ];
 
 // ─── Demo events ─────────────────────────────────────────────────────────────
-// d = days from today (JST), h = JST start hour. 25 upcoming + 2 past.
+// d = days from today (JST), h = JST start hour. 28 upcoming + 2 past.
 // Mix of cities, styles, types; some with coords, some city-only; one
 // cancelled, one all-day; a few user-submitted (sourceId null).
 
@@ -126,7 +126,7 @@ const EVENTS = [
     lat: 34.7003, lng: 135.4983, station: 'Umeda', price: '¥3,500', organizer: 'Yuki & Mario', src: 'salsavida-osaka',
     desc: 'Two-hour intensive on body waves and sensual musicality.' },
 
-  // ── upcoming (27) ──
+  // ── upcoming (28) ──
   // Two CJK-titled fixtures: the app's dedup keys normalize Japanese
   // punctuation and full-width characters, and the UI has to lay out mixed
   // Japanese/latin titles. Invented events at invented venues.
@@ -242,7 +242,7 @@ const EVENTS = [
     city: 'Tokyo', pref: 'Tokyo', venue: 'Club Salud Nippori', addr: '3-1-5 Nishinippori, Arakawa-ku, Tokyo',
     lat: 35.7326, lng: 139.7668, station: 'Nippori', price: '¥2,000 (1 drink incl.)', organizer: 'Club Salud',
     src: 'club-salud-special-events',
-    url: 'https://calendar.google.com/calendar/ical/nippori.salud@gmail.com/public/basic.ics',
+    url: 'https://calendar.google.com/calendar/ical/sr0mc5bme09l3b8eaq9nloqoug@group.calendar.google.com/public/basic.ics',
     desc: 'Extended holiday social with live percussion.' },
 ];
 

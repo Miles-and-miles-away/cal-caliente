@@ -81,8 +81,7 @@ void main() {
 
   setUpAll(() async {
     await Firebase.initializeApp(options: DemoFirebaseOptions.currentPlatform);
-    final host =
-        emulatorHost(isWeb: kIsWeb, platform: defaultTargetPlatform);
+    final host = emulatorHost(isWeb: kIsWeb, platform: defaultTargetPlatform);
     FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
     FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
@@ -123,9 +122,8 @@ void main() {
     await pumpUntilFound(tester, find.textContaining('Going ('));
     await tester.ensureVisible(find.textContaining('Going ('));
     await tester.pump(const Duration(milliseconds: 200));
-    final goingText = tester
-        .widget<Text>(find.textContaining('Going (').first)
-        .data!;
+    final goingText =
+        tester.widget<Text>(find.textContaining('Going (').first).data!;
     final before =
         int.parse(RegExp(r'Going \((\d+)\)').firstMatch(goingText)!.group(1)!);
     await tester.tap(find.textContaining('Going ('), warnIfMissed: false);
@@ -159,7 +157,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     // Anonymous user is not admin: scroll to the list end, no Admin tile.
     // (Scrolling last — it pushes the city chips out of the lazy viewport.)
-    await scrollTo(tester, find.byType(PreferencesScreen), find.text('Submit an Event'));
+    await scrollTo(
+        tester, find.byType(PreferencesScreen), find.text('Submit an Event'));
     expect(find.text('Admin'), findsNothing);
 
     // Calendar: My Calendar toggle shows the saved event badge count.
@@ -196,7 +195,8 @@ void main() {
     // Delete a community submission (seeded, isVerified:false) with the
     // typed phrase. Re-seeding restores deleted demo events between sessions.
     // The community section sits below the (long) scrape-health list — scroll.
-    await scrollTo(tester, find.byType(AdminScreen), find.byIcon(Icons.delete_forever));
+    await scrollTo(
+        tester, find.byType(AdminScreen), find.byIcon(Icons.delete_forever));
     final eventDeletes =
         tester.widgetList(find.byIcon(Icons.delete_forever)).length;
     await tester.ensureVisible(find.byIcon(Icons.delete_forever).first);
@@ -207,8 +207,7 @@ void main() {
 
     // The Delete button stays disabled until the exact phrase is typed.
     final dialogField = find.byType(TextField).last;
-    final phrase =
-        tester.widget<TextField>(dialogField).decoration!.hintText!;
+    final phrase = tester.widget<TextField>(dialogField).decoration!.hintText!;
     await tester.enterText(dialogField, 'WRONG');
     await tester.pump();
     expect(
@@ -224,7 +223,8 @@ void main() {
 
     // Delete the anonymous user left by the smoke test — exercises the
     // adminDeleteUser callable end to end (auth + users doc + RSVP cleanup).
-    await scrollTo(tester, find.byType(AdminScreen), find.byIcon(Icons.person_remove));
+    await scrollTo(
+        tester, find.byType(AdminScreen), find.byIcon(Icons.person_remove));
     final userDeletes =
         tester.widgetList(find.byIcon(Icons.person_remove)).length;
     await tester.ensureVisible(find.byIcon(Icons.person_remove).first);

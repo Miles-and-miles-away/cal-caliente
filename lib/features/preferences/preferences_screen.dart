@@ -171,7 +171,8 @@ class PreferencesScreen extends ConsumerWidget {
               ),
           ]),
           const SizedBox(height: 16),
-          Text('Dance styles (${selectedStyles.isEmpty ? "all" : selectedStyles.length})',
+          Text(
+              'Dance styles (${selectedStyles.isEmpty ? "all" : selectedStyles.length})',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
@@ -180,7 +181,8 @@ class PreferencesScreen extends ConsumerWidget {
             FilterChip(
               label: const Text('All Styles'),
               selected: selectedStyles.isEmpty,
-              onSelected: (_) => actions.updatePrefs({'danceStyles': <String>[]}),
+              onSelected: (_) =>
+                  actions.updatePrefs({'danceStyles': <String>[]}),
             ),
             for (final s in danceStyles.where((s) => s != 'other'))
               FilterChip(
@@ -194,14 +196,16 @@ class PreferencesScreen extends ConsumerWidget {
               ),
           ]),
           const SizedBox(height: 16),
-          Text('Event types (${selectedTypes.isEmpty ? "all" : selectedTypes.length})',
+          Text(
+              'Event types (${selectedTypes.isEmpty ? "all" : selectedTypes.length})',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 6, children: [
             FilterChip(
               label: const Text('All Types'),
               selected: selectedTypes.isEmpty,
-              onSelected: (_) => actions.updatePrefs({'eventTypes': <String>[]}),
+              onSelected: (_) =>
+                  actions.updatePrefs({'eventTypes': <String>[]}),
             ),
             for (final t in eventTypes.where((t) => t != 'other'))
               FilterChip(

@@ -23,8 +23,9 @@ to come.
 ## Screenshots
 
 Running against the local emulator suite. The data is the synthetic
-fixture set from `make seed-demo`: invented events at invented venues, so
-no real organizer's listing or description appears here.
+fixture set from `make seed-demo`: every event and description is
+invented (some placed at real venues, some at invented ones), so no
+real listing text appears here.
 
 | Calendar | Discover | Map | Event detail |
 |---|---|---|---|
@@ -85,7 +86,7 @@ interesting work:
   IPv4-mapped forms), and the residual DNS-rebinding window is documented
   rather than hidden.
 - [`firestore.rules`](firestore.rules): the authorization layer, with
-  field-level allowlists and 50 tests against the emulator.
+  field-level allowlists and 53 tests against the emulator.
 - [`functions/src/keys.ts`](functions/src/keys.ts): cross-source dedup. Two
   key axes at deliberately different time precisions, Unicode-aware title and
   venue normalization for mixed English/Japanese sources.
@@ -124,7 +125,7 @@ integration tests only; `make purge-demo` removes them.
 
 ```bash
 make test                       # Dart unit tests
-make test-rules                 # 50 Firestore rules tests (jest + rules-unit-testing)
+make test-rules                 # 53 Firestore rules tests (jest + rules-unit-testing)
 cd functions && npm test        # 65 functions unit tests
 make itest DEVICE=<device-id>   # end-to-end smoke (run `make seed-demo` first)
 ```
@@ -143,7 +144,7 @@ booted device plus a seeded emulator suite, so it stays local.
 ## History
 
 This repo starts as a React Native + Expo app with an Express/tRPC backend on
-MySQL. That version runs through commit `87c5fc0`. Commit `4053301` rebuilds it
+MySQL. That version runs through commit `6244276`. Commit `603880b` rebuilds it
 on Flutter + Firebase, trading the hand-rolled API layer for security rules and
 direct SDK reads. The original data model survives in `SCHEMA.md`, and the
 dedup keys in `functions/src/keys.ts` are ported verbatim from the old server so

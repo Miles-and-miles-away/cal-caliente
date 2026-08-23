@@ -195,8 +195,8 @@ class Actions {
       if (status == null) {
         await doc.delete();
       } else {
-        await doc.set(
-            {'status': status, 'updatedAt': FieldValue.serverTimestamp()});
+        await doc
+            .set({'status': status, 'updatedAt': FieldValue.serverTimestamp()});
       }
     } on FirebaseException catch (e) {
       debugPrint('setAttendance failed: ${e.code} ${e.message}');
@@ -239,4 +239,3 @@ Future<({int interested, int going})> attendanceCounts(
   ]);
   return (interested: results[0].count ?? 0, going: results[1].count ?? 0);
 }
-

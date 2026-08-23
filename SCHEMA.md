@@ -79,16 +79,16 @@ displayName: string|null
 favoriteEventIds: string[]   // "My Calendar" saves
 prefs: {
   city: string,              // ""=all
-  maxDistanceKm: number,     // default 30
-  nearestStation: string,
   danceStyles: string[],     // empty = all
   eventTypes: string[],      // empty = all
   theme: string,             // light|dark|system
+  language: string|null,     // en|ja|es; null = system locale
 }
 createdAt: Timestamp
 updatedAt: Timestamp
 ```
-Owner read/write only.
+Owner create/update; admin may also read (admin-panel user list). No client
+deletes: removal goes through the `adminDeleteUser` callable.
 
 ## Cloud Functions
 - `submitEvent` (callable, auth required): validated user event submission; computes
@@ -126,4 +126,4 @@ login UI. In production, grant the claim to your real account instead.
 - image upload on submit (Storage surface; scraped imageUrl still displayed)
 - FB/IG adapters (stubs), push notifications (was "coming soon" stub)
 - attendance-count polling on list cards (counts shown on detail screen only)
-- per-user server prefs like notifyBeforeHours/maxWalkMinutes (unused by any feature)
+- per-user server prefs like notifyBeforeHours/maxWalkMinutes/maxDistanceKm/nearestStation (unused by any feature)
