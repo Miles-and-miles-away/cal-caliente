@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Ported verbatim from cal-caliente shared/constants.ts.
+/// Enum vocabulary shared with the backend; keep in sync with
+/// functions/src/constants.ts.
 
 const danceStyles = [
   'salsa', 'bachata', 'zouk', 'kizomba', 'merengue', 'cha-cha-cha', 'cumbia',

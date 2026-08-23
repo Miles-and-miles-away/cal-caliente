@@ -14,7 +14,7 @@
  * Deliberately dropped vs. the old server (see SCHEMA.md):
  * - Facebook/Instagram adapters (were token-gated stubs; sources of those
  *   types are skipped with a log line)
- * - ponytail: detail-page enrichment pass cut — the old scraper re-fetched
+ * - Detail-page enrichment pass cut — the old scraper re-fetched
  *   sparse events' detail pages for a second LLM pass (address/coords).
  *   Listing-page extraction alone is good enough to relaunch; revisit if
  *   map pins prove too sparse.

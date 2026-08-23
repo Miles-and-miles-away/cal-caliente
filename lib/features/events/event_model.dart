@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Plain model over the events/{canonicalKey} doc (see SCHEMA.md).
-/// ponytail: manual fromDoc instead of freezed/json_serializable — Firestore
-/// Timestamps need hand conversion anyway; upgrade to freezed if models multiply.
+/// Manual fromDoc instead of freezed/json_serializable: Firestore Timestamps
+/// need hand conversion anyway; upgrade to freezed if models multiply.
 class Event {
   const Event({
     required this.id,

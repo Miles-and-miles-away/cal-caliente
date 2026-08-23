@@ -15,8 +15,10 @@ that rules, functions, app, and seed script are all kept in sync against.
 
 **Status:** development runs against the local emulator suite under project id
 `demo-cal-caliente`. A real `cal-caliente` Firebase project is configured in
-`lib/firebase_options.dart`, but nothing is deployed to it yet, and Google/Apple
-sign-in is not wired up (auth is anonymous-only).
+`lib/firebase_options.dart`, but nothing is deployed to it yet. Everyone starts
+as an anonymous Firebase user; Google sign-in upgrades that account in place
+(`linkWithProvider`, so favorites and RSVPs carry over). Apple sign-in is still
+to come.
 
 ## Screenshots
 
@@ -123,11 +125,11 @@ integration tests only; `make purge-demo` removes them.
 ```bash
 make test                       # Dart unit tests
 make test-rules                 # 50 Firestore rules tests (jest + rules-unit-testing)
-cd functions && npm test        # 57 functions unit tests
+cd functions && npm test        # 65 functions unit tests
 make itest DEVICE=<device-id>   # end-to-end smoke (run `make seed-demo` first)
 ```
 
-CI runs the first three on every push. The integration smoke test needs a
+CI runs the first three on every push to `main` and on every pull request. The integration smoke test needs a
 booted device plus a seeded emulator suite, so it stays local.
 
 ## Layout

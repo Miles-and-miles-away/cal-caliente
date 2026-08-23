@@ -70,8 +70,8 @@ Future<void> main() async {
     );
   }
 
-  // ponytail: anonymous-only auth until a real Firebase project exists;
-  // add Google (and Apple, for iOS release) then.
+  // Everyone starts anonymous; Google sign-in upgrades the account in place
+  // (see PreferencesScreen). Apple sign-in is still to come.
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
   }

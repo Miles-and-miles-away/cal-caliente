@@ -1,4 +1,5 @@
 import 'package:cal_caliente/app/app.dart';
+import 'package:cal_caliente/core/emulator.dart';
 import 'package:cal_caliente/features/admin/admin_screen.dart';
 import 'package:cal_caliente/features/events/event_card.dart';
 import 'package:cal_caliente/features/preferences/preferences_screen.dart';
@@ -80,9 +81,8 @@ void main() {
 
   setUpAll(() async {
     await Firebase.initializeApp(options: DemoFirebaseOptions.currentPlatform);
-    final host = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-        ? '10.0.2.2'
-        : 'localhost';
+    final host =
+        emulatorHost(isWeb: kIsWeb, platform: defaultTargetPlatform);
     FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
     FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
