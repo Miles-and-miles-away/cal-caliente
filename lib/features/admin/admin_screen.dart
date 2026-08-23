@@ -60,7 +60,8 @@ Future<bool> confirmDestructive(
   return ok == true;
 }
 
-String _tail(String id) => id.substring(id.length - 4).toUpperCase();
+String _tail(String id) =>
+    (id.length <= 4 ? id : id.substring(id.length - 4)).toUpperCase();
 
 class AdminScreen extends ConsumerWidget {
   const AdminScreen({super.key});
@@ -125,7 +126,9 @@ class AdminScreen extends ConsumerWidget {
                     _snack(context, 'Scrape done: ${res.data}');
                   }
                 } on FirebaseFunctionsException catch (e) {
-                  if (context.mounted) _snack(context, 'Scrape failed: ${e.message}');
+                  if (context.mounted) {
+                    _snack(context, 'Scrape failed: ${e.message}');
+                  }
                 }
               },
             ),
@@ -176,8 +179,7 @@ class AdminScreen extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: e.isCancelled
-                      ? const TextStyle(
-                          decoration: TextDecoration.lineThrough)
+                      ? const TextStyle(decoration: TextDecoration.lineThrough)
                       : null,
                 ),
                 subtitle: Text(

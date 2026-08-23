@@ -50,15 +50,13 @@ export class HtmlScraperAdapter implements ScraperAdapter {
       return [];
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
-
       const response = await safeFetch(sanitized, {
         headers: { "User-Agent": SCRAPER_USER_AGENT },
         signal: controller.signal,
       });
-      clearTimeout(timeout);
 
       if (!response.ok) {
         logger.warn(`[Scraper:HTML] HTTP ${response.status} for ${sanitized}`);
@@ -84,6 +82,8 @@ export class HtmlScraperAdapter implements ScraperAdapter {
         logger.warn(`[Scraper:HTML] Error: ${err.message}`);
       }
       return [];
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
@@ -105,10 +105,9 @@ export class RssScraperAdapter implements ScraperAdapter {
     const sanitized = sanitizeUrl(url);
     if (!sanitized) return [];
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), SCRAPER_FETCH_TIMEOUT_MS);
-
       const response = await safeFetch(sanitized, {
         headers: {
           "User-Agent": SCRAPER_USER_AGENT,
@@ -118,7 +117,6 @@ export class RssScraperAdapter implements ScraperAdapter {
         },
         signal: controller.signal,
       });
-      clearTimeout(timeout);
 
       if (!response.ok) {
         logger.warn(`[Scraper:iCal] HTTP ${response.status} for ${sanitized}`);
@@ -137,8 +135,15 @@ export class RssScraperAdapter implements ScraperAdapter {
       logger.info(`[Scraper:iCal] Parsed ${events.length} events from ${sanitized}`);
       return events;
     } catch (error) {
-      logger.warn(`[Scraper:iCal] Error: ${(error as Error).message}`);
+      const err = error as Error;
+      if (err.name === "AbortError") {
+        logger.warn(`[Scraper:iCal] Timeout fetching ${sanitized}`);
+      } else {
+        logger.warn(`[Scraper:iCal] Error: ${err.message}`);
+      }
       return [];
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
@@ -299,6 +304,7 @@ export async function scrapeSource(
       );
     }
   } catch (error) {
+    logger.error(`[Scraper] ${source.name} failed: ${(error as Error).message}`);
     await sourceRef
       .collection("scrapeLogs")
       .add({

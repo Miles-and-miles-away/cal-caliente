@@ -12,6 +12,15 @@ describe("isPrivateIp", () => {
     }
   });
 
+  it("flags CGNAT and benchmark ranges", () => {
+    for (const ip of ["100.64.0.1", "100.127.255.254", "198.18.0.1", "198.19.255.254"]) {
+      expect(isPrivateIp(ip)).toBe(true);
+    }
+    expect(isPrivateIp("100.63.255.254")).toBe(false);
+    expect(isPrivateIp("100.128.0.1")).toBe(false);
+    expect(isPrivateIp("198.17.255.254")).toBe(false);
+  });
+
   it("allows public IPv4", () => {
     expect(isPrivateIp("8.8.8.8")).toBe(false);
     expect(isPrivateIp("1.1.1.1")).toBe(false);

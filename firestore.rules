@@ -15,6 +15,8 @@ service cloud.firestore {
 
     // Events: public read; creates go through callables/scraper (Admin SDK).
     // Admin may update (cancel/uncancel) and delete from the in-app admin panel.
+    // Admin writes are deliberately unconstrained: the claim is granted once
+    // via the Admin SDK, so the field allowlist would only guard against us.
     match /events/{eventId} {
       allow read: if true;
       allow create: if false;
@@ -25,7 +27,8 @@ service cloud.firestore {
         allow read: if true;
         allow create, update: if isOwner(uid)
           && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
-          && request.resource.data.status in ['interested', 'going'];
+          && request.resource.data.status in ['interested', 'going']
+          && request.resource.data.updatedAt is timestamp;
         allow delete: if isOwner(uid);
       }
     }
@@ -66,7 +69,7 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isAdmin();
       // Field checks are conditional on presence: a first-ever write from the
       // Preferences screen sends only `prefs` (merge), and must not be denied.
-      allow write: if isOwner(uid)
+      allow create, update: if isOwner(uid)
         && request.resource.data.keys().hasOnly(
              ['displayName', 'favoriteEventIds', 'prefs', 'createdAt', 'updatedAt'])
         && (!('favoriteEventIds' in request.resource.data)
@@ -74,6 +77,7 @@ service cloud.firestore {
                 && request.resource.data.favoriteEventIds.size() <= 1000))
         && (!('prefs' in request.resource.data)
             || request.resource.data.prefs is map);
+      allow delete: if false;
     }
   }
 }

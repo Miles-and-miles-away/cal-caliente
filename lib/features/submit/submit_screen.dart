@@ -34,8 +34,14 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
   @override
   void dispose() {
     for (final c in [
-      _title, _description, _venueName, _venueAddress, _station, _price,
-      _organizer, _sourceUrl,
+      _title,
+      _description,
+      _venueName,
+      _venueAddress,
+      _station,
+      _price,
+      _organizer,
+      _sourceUrl,
     ]) {
       c.dispose();
     }
@@ -52,10 +58,25 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
         '${d.minute.toString().padLeft(2, '0')}:00+09:00';
   }
 
+  /// A 21:00-02:00 social ends the next day; roll the date when the end time
+  /// is at or before the start time.
+  DateTime _endDate() {
+    final s = _time!, e = _endTime!;
+    final overnight =
+        e.hour < s.hour || (e.hour == s.hour && e.minute <= s.minute);
+    return overnight ? _date!.add(const Duration(days: 1)) : _date!;
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_date == null || _time == null) {
       _snack('Pick a date and start time');
+      return;
+    }
+    if (_endTime != null &&
+        _endTime!.hour == _time!.hour &&
+        _endTime!.minute == _time!.minute) {
+      _snack('End time is the same as the start time');
       return;
     }
     setState(() => _busy = true);
@@ -63,7 +84,7 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
       await ref.read(functionsProvider).httpsCallable('submitEvent').call({
         'title': _title.text.trim(),
         'startAt': _jstIso(_date!, _time!),
-        if (_endTime != null) 'endAt': _jstIso(_date!, _endTime!),
+        if (_endTime != null) 'endAt': _jstIso(_endDate(), _endTime!),
         if (_description.text.trim().isNotEmpty)
           'description': _description.text.trim(),
         'danceStyle': _danceStyle,
@@ -158,9 +179,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.schedule),
-                  label: Text(_time == null
-                      ? 'Start *'
-                      : _time!.format(context)),
+                  label:
+                      Text(_time == null ? 'Start *' : _time!.format(context)),
                   onPressed: () async {
                     final t = await showTimePicker(
                         context: context,
@@ -173,8 +193,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.schedule_outlined),
-                  label:
-                      Text(_endTime == null ? 'End' : _endTime!.format(context)),
+                  label: Text(
+                      _endTime == null ? 'End' : _endTime!.format(context)),
                   onPressed: () async {
                     final t = await showTimePicker(
                         context: context,
@@ -229,8 +249,8 @@ class _SubmitScreenState extends ConsumerState<SubmitScreen> {
             TextFormField(
               controller: _price,
               maxLength: 200,
-              decoration:
-                  const InputDecoration(labelText: 'Price (e.g. ¥1500 + drink)'),
+              decoration: const InputDecoration(
+                  labelText: 'Price (e.g. ¥1500 + drink)'),
             ),
             TextFormField(
               controller: _organizer,

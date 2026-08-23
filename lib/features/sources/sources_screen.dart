@@ -35,7 +35,9 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
       _snack('Enter a source name (max 255 chars)');
       return;
     }
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || url.length > 768) {
+    if (uri == null ||
+        !(uri.scheme == 'http' || uri.scheme == 'https') ||
+        url.length > 768) {
       _snack('Enter a valid http(s) URL (max 768 chars)');
       return;
     }
@@ -68,6 +70,7 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
   Widget build(BuildContext context) {
     final sourcesAsync = ref.watch(sourcesProvider);
     final uid = ref.watch(uidProvider);
+    final isAdmin = ref.watch(isAdminProvider).value ?? false;
     final firestore = ref.read(firestoreProvider);
 
     return Scaffold(
@@ -102,8 +105,8 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
                 Wrap(spacing: 6, children: [
                   for (final t in sourceTypes)
                     ChoiceChip(
-                      label: Text(
-                          '${sourceTypeIcons[t]} ${sourceTypeLabels[t]}'),
+                      label:
+                          Text('${sourceTypeIcons[t]} ${sourceTypeLabels[t]}'),
                       selected: _type == t,
                       onSelected: (_) => setState(() => _type = t),
                     ),
@@ -123,8 +126,7 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
                 itemCount: sources.length,
                 itemBuilder: (context, i) {
                   final s = sources[i];
-                  final mine = s.addedByUid == uid ||
-                      (ref.watch(isAdminProvider).value ?? false);
+                  final mine = s.addedByUid == uid || isAdmin;
                   return ListTile(
                     leading: Text(sourceTypeIcons[s.sourceType] ?? '🌐',
                         style: const TextStyle(fontSize: 22)),

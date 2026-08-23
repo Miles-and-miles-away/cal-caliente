@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -79,13 +80,29 @@ class _MainShell extends ConsumerWidget {
     // Seed the shared tab filters from saved prefs. Done here (widget-level
     // ref.listen fires outside the build phase) rather than inside the filter
     // Notifiers, which would crash on the Firestore stream emitting mid-frame.
-    ref.listen(userPrefsProvider, (_, prefs) {
-      Set<String> setOf(String k) =>
-          List<String>.from((prefs[k] as List?) ?? const []).toSet();
-      ref.read(danceFilterProvider.notifier).setAll(setOf('danceStyles'));
-      ref.read(eventTypeFilterProvider.notifier).setAll(setOf('eventTypes'));
-      final city = prefs['city'] as String? ?? '';
-      ref.read(cityFilterProvider.notifier).set(city.isEmpty ? 'all' : city);
+    // Per-field change guards: the user doc emits on every write (a favorite
+    // toggle), and unrelated emissions must not clobber transient filter tweaks.
+    ref.listen(userPrefsProvider, (prev, prefs) {
+      Set<String> setOf(Map<String, dynamic>? p, String k) =>
+          List<String>.from((p?[k] as List?) ?? const []).toSet();
+      String cityOf(Map<String, dynamic>? p) {
+        final c = p?['city'] as String? ?? '';
+        return c.isEmpty ? 'all' : c;
+      }
+
+      if (!setEquals(setOf(prev, 'danceStyles'), setOf(prefs, 'danceStyles'))) {
+        ref
+            .read(danceFilterProvider.notifier)
+            .setAll(setOf(prefs, 'danceStyles'));
+      }
+      if (!setEquals(setOf(prev, 'eventTypes'), setOf(prefs, 'eventTypes'))) {
+        ref
+            .read(eventTypeFilterProvider.notifier)
+            .setAll(setOf(prefs, 'eventTypes'));
+      }
+      if (cityOf(prev) != cityOf(prefs)) {
+        ref.read(cityFilterProvider.notifier).set(cityOf(prefs));
+      }
     });
     return Scaffold(
       body: shell,

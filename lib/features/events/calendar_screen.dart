@@ -120,8 +120,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: dayEvents.length,
-                    itemBuilder: (context, i) =>
-                        EventCard(event: dayEvents[i]),
+                    itemBuilder: (context, i) => EventCard(event: dayEvents[i]),
                   ),
           ),
         ],

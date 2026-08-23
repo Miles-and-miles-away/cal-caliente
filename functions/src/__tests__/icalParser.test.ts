@@ -50,6 +50,82 @@ const FIXTURE = [
   "END:VCALENDAR",
 ].join("\r\n");
 
+describe("parseIcal timezone and window edges", () => {
+  const wrap = (vevent: string[], vtimezone: string[] = []) =>
+    [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      ...vtimezone,
+      "BEGIN:VEVENT",
+      ...vevent,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+  const JST_VTIMEZONE = [
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Tokyo",
+    "BEGIN:STANDARD",
+    "DTSTART:19700101T000000",
+    "TZOFFSETFROM:+0900",
+    "TZOFFSETTO:+0900",
+    "TZNAME:JST",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ];
+
+  // 20:00 JST = 11:00Z. Wrong on a UTC runner (Cloud Functions, CI) if the
+  // TZID resolves to floating time instead of +09:00.
+  it("resolves TZID=Asia/Tokyo when the feed ships its VTIMEZONE", () => {
+    const [ev] = parseIcal(
+      wrap(
+        ["UID:tz1", "SUMMARY:TZ Event", "DTSTART;TZID=Asia/Tokyo:20260805T200000"],
+        JST_VTIMEZONE,
+      ),
+      { now: NOW },
+    );
+    expect(new Date(ev.startAt).toISOString()).toBe("2026-08-05T11:00:00.000Z");
+  });
+
+  it("resolves TZID=Asia/Tokyo even when the feed omits the VTIMEZONE", () => {
+    const [ev] = parseIcal(
+      wrap(["UID:tz2", "SUMMARY:TZ Event", "DTSTART;TZID=Asia/Tokyo:20260805T200000"]),
+      { now: NOW },
+    );
+    expect(new Date(ev.startAt).toISOString()).toBe("2026-08-05T11:00:00.000Z");
+  });
+
+  it("keeps a timed event that already started but has not ended", () => {
+    const [ev] = parseIcal(
+      wrap([
+        "UID:running-1",
+        "SUMMARY:Festival In Progress",
+        "DTSTART:20260730T100000Z",
+        "DTEND:20260803T100000Z",
+      ]),
+      { now: NOW },
+    );
+    expect(ev?.title).toBe("Festival In Progress");
+  });
+
+  it("keeps a recurring occurrence that already started but has not ended", () => {
+    // Overnight weekly social: the 2026-07-31T20:00Z occurrence is mid-party
+    // at NOW (2026-08-01T00:00Z) and must survive the expansion.
+    const events = parseIcal(
+      wrap([
+        "UID:rec-running-1",
+        "SUMMARY:Overnight Social",
+        "DTSTART:20260731T200000Z",
+        "DTEND:20260801T040000Z",
+        "RRULE:FREQ=WEEKLY;COUNT=3",
+      ]),
+      { now: NOW },
+    );
+    expect(events.map((e) => e.startAt)).toContain("2026-07-31T20:00:00.000Z");
+    expect(events).toHaveLength(3);
+  });
+});
+
 describe("parseIcal", () => {
   const events = parseIcal(FIXTURE, { now: NOW });
 

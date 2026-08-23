@@ -9,6 +9,10 @@
  *
  * Idempotent: doc IDs are deterministic (source slugs, event canonicalKeys,
  * fixed log ids) and all writes are set(..., {merge: true}) — safe to re-run.
+ * Demo event ids shift with the current date (startAt feeds the canonicalKey),
+ * so --demo records what it wrote in demoMeta/manifest: re-seeding on a later
+ * day purges the stale fixtures first, and --purge-demo deletes what was
+ * actually written rather than what today's ids would be.
  *
  * Usage:
  *   npm run seed                       # against an already-running emulator
@@ -110,7 +114,7 @@ const SOURCES = [
 ];
 
 // ─── Demo events ─────────────────────────────────────────────────────────────
-// d = days from today (JST), h = JST start hour. 25 upcoming + 2 past.
+// d = days from today (JST), h = JST start hour. 28 upcoming + 2 past.
 // Mix of cities, styles, types; some with coords, some city-only; one
 // cancelled, one all-day; a few user-submitted (sourceId null).
 
@@ -126,7 +130,7 @@ const EVENTS = [
     lat: 34.7003, lng: 135.4983, station: 'Umeda', price: '¥3,500', organizer: 'Yuki & Mario', src: 'salsavida-osaka',
     desc: 'Two-hour intensive on body waves and sensual musicality.' },
 
-  // ── upcoming (27) ──
+  // ── upcoming (28) ──
   // Two CJK-titled fixtures: the app's dedup keys normalize Japanese
   // punctuation and full-width characters, and the UI has to lay out mixed
   // Japanese/latin titles. Invented events at invented venues.
@@ -242,7 +246,7 @@ const EVENTS = [
     city: 'Tokyo', pref: 'Tokyo', venue: 'Club Salud Nippori', addr: '3-1-5 Nishinippori, Arakawa-ku, Tokyo',
     lat: 35.7326, lng: 139.7668, station: 'Nippori', price: '¥2,000 (1 drink incl.)', organizer: 'Club Salud',
     src: 'club-salud-special-events',
-    url: 'https://calendar.google.com/calendar/ical/nippori.salud@gmail.com/public/basic.ics',
+    url: 'https://calendar.google.com/calendar/ical/sr0mc5bme09l3b8eaq9nloqoug@group.calendar.google.com/public/basic.ics',
     desc: 'Extended holiday social with live percussion.' },
 ];
 
@@ -341,17 +345,28 @@ async function seedAdminUser() {
 const WITH_DEMO = process.argv.includes('--demo');
 const PURGE_DEMO = process.argv.includes('--purge-demo');
 
+const manifestRef = db.collection('demoMeta').doc('manifest');
+
+async function seededDemoIds() {
+  const snap = await manifestRef.get();
+  // No usable manifest (pre-manifest seed, or a tampered doc): fall back to
+  // recomputing today's ids.
+  const ids = snap.exists ? snap.data().eventIds : null;
+  return Array.isArray(ids) ? ids : EVENTS.map(buildEventDoc).map((e) => e.id);
+}
+
 async function purgeDemo() {
-  const events = EVENTS.map(buildEventDoc);
+  const ids = await seededDemoIds();
   const batch = db.batch();
-  for (const e of events) batch.delete(db.collection('events').doc(e.id));
+  for (const id of ids) batch.delete(db.collection('events').doc(id));
   for (const log of SCRAPE_LOGS) {
     batch.delete(
       db.collection('sources').doc(log.sourceId).collection('scrapeLogs').doc(log.id),
     );
   }
+  batch.delete(manifestRef);
   await batch.commit();
-  console.log(`Purged ${events.length} demo events and ${SCRAPE_LOGS.length} demo scrapeLogs`);
+  console.log(`Purged ${ids.length} demo events and ${SCRAPE_LOGS.length} demo scrapeLogs`);
 }
 
 async function main() {
@@ -390,6 +405,12 @@ async function main() {
   }
 
   if (WITH_DEMO) {
+    // Ids are date-relative; drop fixtures from an earlier seed day that
+    // today's run no longer owns, then record what this run wrote.
+    const stale = (await seededDemoIds()).filter((id) => !ids.has(id));
+    for (const id of stale) batch.delete(db.collection('events').doc(id));
+    batch.set(manifestRef, { eventIds: [...ids], updatedAt: now });
+
     for (const log of SCRAPE_LOGS) {
       batch.set(
         db.collection('sources').doc(log.sourceId).collection('scrapeLogs').doc(log.id),

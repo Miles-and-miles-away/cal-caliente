@@ -71,6 +71,11 @@ describe("validateSubmitEventInput", () => {
     expectRejects({ ...valid, endAt: "not-a-date" }, "endAt");
   });
 
+  it("rejects an endAt at or before startAt (overnight events roll the date)", () => {
+    expectRejects({ ...valid, endAt: "2026-08-01T02:00:00+09:00" }, "endAt");
+    expectRejects({ ...valid, endAt: valid.startAt }, "endAt");
+  });
+
   it("rejects a description over 5000 chars", () => {
     expectRejects({ ...valid, description: "x".repeat(5001) }, "description");
   });

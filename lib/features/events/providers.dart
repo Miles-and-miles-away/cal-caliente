@@ -153,12 +153,18 @@ class Actions {
       .collection('users')
       .doc(_ref.read(uidProvider));
 
-  Map<String, dynamic> _userBase() => {
-        'prefs': _ref.read(userPrefsProvider),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'createdAt': _ref.read(userDocProvider).value?['createdAt'] ??
-            FieldValue.serverTimestamp(),
-      };
+  // createdAt only once the doc stream has emitted: a write racing the first
+  // emission must not stamp a fresh createdAt over an existing one.
+  Map<String, dynamic> _userBase() {
+    final userDoc = _ref.read(userDocProvider);
+    return {
+      'prefs': _ref.read(userPrefsProvider),
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (userDoc.hasValue)
+        'createdAt':
+            userDoc.value?['createdAt'] ?? FieldValue.serverTimestamp(),
+    };
+  }
 
   Future<void> toggleFavorite(String eventId, bool save) async {
     try {
@@ -195,8 +201,8 @@ class Actions {
       if (status == null) {
         await doc.delete();
       } else {
-        await doc.set(
-            {'status': status, 'updatedAt': FieldValue.serverTimestamp()});
+        await doc
+            .set({'status': status, 'updatedAt': FieldValue.serverTimestamp()});
       }
     } on FirebaseException catch (e) {
       debugPrint('setAttendance failed: ${e.code} ${e.message}');
@@ -239,4 +245,3 @@ Future<({int interested, int going})> attendanceCounts(
   ]);
   return (interested: results[0].count ?? 0, going: results[1].count ?? 0);
 }
-

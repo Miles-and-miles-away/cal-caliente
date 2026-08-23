@@ -109,11 +109,10 @@ const baseUserDoc = {
   favoriteEventIds: [],
   prefs: {
     city: '',
-    maxDistanceKm: 30,
-    nearestStation: '',
     danceStyles: [],
     eventTypes: [],
     theme: 'system',
+    language: null,
   },
   createdAt: Timestamp.now(),
   updatedAt: Timestamp.now(),
@@ -235,6 +234,21 @@ describe('events/{eventId}/attendance/{uid}', () => {
         ...validAttendance,
         plusOnes: 5,
       }),
+    );
+  });
+
+  test('rejects a non-timestamp updatedAt', async () => {
+    await assertFails(
+      setDoc(doc(aliceDb(), alicePath), {
+        ...validAttendance,
+        updatedAt: 'banana',
+      }),
+    );
+  });
+
+  test('rejects a missing updatedAt', async () => {
+    await assertFails(
+      setDoc(doc(aliceDb(), alicePath), {status: 'going'}),
     );
   });
 
@@ -400,6 +414,11 @@ describe('users/{uid}', () => {
     await assertFails(
       setDoc(doc(bobDb(), `users/${ALICE}`), baseUserDoc),
     );
+  });
+
+  test('owner cannot delete their own doc (adminDeleteUser only)', async () => {
+    await seed(`users/${ALICE}`, baseUserDoc);
+    await assertFails(deleteDoc(doc(aliceDb(), `users/${ALICE}`)));
   });
 
   test('owner can update favorites and prefs', async () => {

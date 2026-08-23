@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,19 @@ import 'providers.dart';
 String _addressText(Event e) =>
     [e.venueName, e.venueAddress, e.city].whereType<String>().join(', ');
 
+/// RSVP writes fail loudly: a rules or network failure surfaces as a snackbar
+/// instead of a silently un-toggled button.
+Future<void> _rsvp(BuildContext context, Future<void> Function() write) async {
+  try {
+    await write();
+  } on FirebaseException {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update RSVP, try again')));
+    }
+  }
+}
+
 /// The event's source link is attacker-controllable (any user can submit or
 /// register a source), so it's the one outbound URL we don't fully trust.
 /// Show where it goes and let the user bail before we hand off to the browser.
@@ -28,8 +42,7 @@ Future<void> _openSourceUrl(BuildContext context, Uri uri) async {
         children: [
           const Text('This opens a site outside the app:'),
           const SizedBox(height: 8),
-          Text(uri.host,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(uri.host, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(uri.toString(),
               style: Theme.of(ctx).textTheme.bodySmall,
@@ -73,10 +86,10 @@ class EventDetailScreen extends ConsumerWidget {
     final eventAsync = ref.watch(eventByIdProvider(eventId));
 
     return eventAsync.when(
-      loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(
-          appBar: AppBar(), body: Center(child: Text('Error: $e'))),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) =>
+          Scaffold(appBar: AppBar(), body: Center(child: Text('Error: $e'))),
       data: (event) {
         if (event == null) {
           return Scaffold(
@@ -162,7 +175,8 @@ class _EventDetail extends ConsumerWidget {
                     backgroundColor: color.withValues(alpha: 0.15),
                     labelStyle: TextStyle(color: color),
                   ),
-                  Chip(label: Text(eventTypeLabels[event.eventType] ?? 'Other')),
+                  Chip(
+                      label: Text(eventTypeLabels[event.eventType] ?? 'Other')),
                   if (event.isVerified)
                     const Chip(
                       avatar: Icon(Icons.verified, size: 16),
@@ -231,7 +245,8 @@ class _EventDetail extends ConsumerWidget {
                       ? FilledButton.styleFrom(backgroundColor: color)
                       : null,
                   icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border),
-                  label: Text(saved ? 'Saved to My Calendar' : 'Save to My Calendar'),
+                  label: Text(
+                      saved ? 'Saved to My Calendar' : 'Save to My Calendar'),
                   onPressed: () => actions.toggleFavorite(event.id, !saved),
                 ),
                 const SizedBox(height: 12),
@@ -241,8 +256,10 @@ class _EventDetail extends ConsumerWidget {
                       label: 'Interested',
                       count: counts?.interested,
                       selected: myStatus == 'interested',
-                      onTap: () => actions.setAttendance(event.id,
-                          myStatus == 'interested' ? null : 'interested'),
+                      onTap: () => _rsvp(
+                          context,
+                          () => actions.setAttendance(event.id,
+                              myStatus == 'interested' ? null : 'interested')),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -251,15 +268,17 @@ class _EventDetail extends ConsumerWidget {
                       label: 'Going',
                       count: counts?.going,
                       selected: myStatus == 'going',
-                      onTap: () => actions.setAttendance(
-                          event.id, myStatus == 'going' ? null : 'going'),
+                      onTap: () => _rsvp(
+                          context,
+                          () => actions.setAttendance(
+                              event.id, myStatus == 'going' ? null : 'going')),
                     ),
                   ),
                 ]),
                 const SizedBox(height: 12),
                 if (event.sourceUrl != null &&
-                    Uri.tryParse(event.sourceUrl!)?.scheme.startsWith('http') ==
-                        true)
+                    const {'http', 'https'}
+                        .contains(Uri.tryParse(event.sourceUrl!)?.scheme))
                   TextButton.icon(
                     icon: const Icon(Icons.open_in_new),
                     label: const Text('View Original Source'),

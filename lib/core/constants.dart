@@ -4,15 +4,39 @@ import 'package:flutter/material.dart';
 /// functions/src/constants.ts.
 
 const danceStyles = [
-  'salsa', 'bachata', 'zouk', 'kizomba', 'merengue', 'cha-cha-cha', 'cumbia',
-  'reggaeton', 'samba', 'tango', 'rumba', 'mambo', 'afro-latin', 'mixed', 'other',
+  'salsa',
+  'bachata',
+  'zouk',
+  'kizomba',
+  'merengue',
+  'cha-cha-cha',
+  'cumbia',
+  'reggaeton',
+  'samba',
+  'tango',
+  'rumba',
+  'mambo',
+  'afro-latin',
+  'mixed',
+  'other',
 ];
 
 const danceStyleLabels = {
-  'salsa': 'Salsa', 'bachata': 'Bachata', 'zouk': 'Zouk', 'kizomba': 'Kizomba',
-  'merengue': 'Merengue', 'cha-cha-cha': 'Cha-Cha-Cha', 'cumbia': 'Cumbia',
-  'reggaeton': 'Reggaeton', 'samba': 'Samba', 'tango': 'Tango', 'rumba': 'Rumba',
-  'mambo': 'Mambo', 'afro-latin': 'Afro-Latin', 'mixed': 'Mixed', 'other': 'Other',
+  'salsa': 'Salsa',
+  'bachata': 'Bachata',
+  'zouk': 'Zouk',
+  'kizomba': 'Kizomba',
+  'merengue': 'Merengue',
+  'cha-cha-cha': 'Cha-Cha-Cha',
+  'cumbia': 'Cumbia',
+  'reggaeton': 'Reggaeton',
+  'samba': 'Samba',
+  'tango': 'Tango',
+  'rumba': 'Rumba',
+  'mambo': 'Mambo',
+  'afro-latin': 'Afro-Latin',
+  'mixed': 'Mixed',
+  'other': 'Other',
 };
 
 const danceStyleColors = {
@@ -37,19 +61,39 @@ Color danceStyleColor(String? style) =>
     danceStyleColors[style] ?? danceStyleColors['other']!;
 
 const eventTypes = [
-  'social', 'workshop', 'performance', 'festival', 'class', 'congress',
-  'bootcamp', 'other',
+  'social',
+  'workshop',
+  'performance',
+  'festival',
+  'class',
+  'congress',
+  'bootcamp',
+  'other',
 ];
 
 const eventTypeLabels = {
-  'social': 'Social Dance', 'workshop': 'Workshop', 'performance': 'Performance',
-  'festival': 'Festival', 'class': 'Class', 'congress': 'Congress',
-  'bootcamp': 'Bootcamp', 'other': 'Other',
+  'social': 'Social Dance',
+  'workshop': 'Workshop',
+  'performance': 'Performance',
+  'festival': 'Festival',
+  'class': 'Class',
+  'congress': 'Congress',
+  'bootcamp': 'Bootcamp',
+  'other': 'Other',
 };
 
 const japanCities = [
-  'Tokyo', 'Osaka', 'Nagoya', 'Fukuoka', 'Yokohama', 'Kobe', 'Sapporo',
-  'Kyoto', 'Sendai', 'Hiroshima', 'Okinawa',
+  'Tokyo',
+  'Osaka',
+  'Nagoya',
+  'Fukuoka',
+  'Yokohama',
+  'Kobe',
+  'Sapporo',
+  'Kyoto',
+  'Sendai',
+  'Hiroshima',
+  'Okinawa',
 ];
 
 /// City-center fallback coordinates for events with a city but no GPS.
@@ -70,10 +114,17 @@ const cityCoordinates = <String, (double, double)>{
 const sourceTypes = ['facebook', 'instagram', 'rss', 'html', 'custom'];
 
 const sourceTypeLabels = {
-  'facebook': 'Facebook', 'instagram': 'Instagram', 'rss': 'RSS / iCal',
-  'html': 'Website', 'custom': 'Custom',
+  'facebook': 'Facebook',
+  'instagram': 'Instagram',
+  'rss': 'RSS / iCal',
+  'html': 'Website',
+  'custom': 'Custom',
 };
 
 const sourceTypeIcons = {
-  'facebook': '📘', 'instagram': '📸', 'rss': '📡', 'html': '🌐', 'custom': '🔧',
+  'facebook': '📘',
+  'instagram': '📸',
+  'rss': '📡',
+  'html': '🌐',
+  'custom': '🔧',
 };
