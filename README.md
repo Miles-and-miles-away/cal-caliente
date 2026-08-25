@@ -97,7 +97,12 @@ interesting work:
 ## Dev loop
 
 Needs the Flutter SDK, Node 22, and a JDK (the Firestore emulator is a JVM
-process; set `JAVA_HOME` if `java` is not already on your path).
+process; set `JAVA_HOME` if `java` is not already on your path). On macOS,
+Android Studio ships a usable JDK, so no separate install is needed:
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+```
 
 ```bash
 flutter pub get && npm ci        # once
